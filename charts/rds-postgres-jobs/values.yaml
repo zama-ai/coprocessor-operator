@@ -1,0 +1,64 @@
+# Override the release namespace.
+# namespace: ""
+
+# Override the chart/full name used in resource metadata.
+# nameOverride: ""
+# fullnameOverride: ""
+
+# Default image used by the job container. Can be overridden per-job under job.image.
+image:
+  repository: ""
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+
+# Name of an existing ServiceAccount to use (e.g. one with an IAM role annotation).
+# Leave empty to use the namespace default.
+serviceAccountName: ""
+
+# Environment variables injected into the job container.
+env: []
+
+# Init containers run before the job container. Full Kubernetes initContainer spec.
+initContainers: []
+
+# Volumes and mounts available to all containers (init and job).
+volumes: []
+volumeMounts: []
+
+podAnnotations: {}
+podLabels: {}
+# Pod-level security context (e.g. fsGroup).
+podSecurityContext: {}
+# Container-level security context (e.g. runAsUser, readOnlyRootFilesystem).
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Resource requests/limits for the job container. Overridden by job.resources if set.
+resources: {}
+
+job:
+  enabled: false
+  annotations: {}
+  # Seconds after completion before the Job is deleted. Leave unset to keep indefinitely.
+  ttlSecondsAfterFinished:
+  # Number of retries before the Job is marked failed.
+  backoffLimit:
+  # Hard deadline in seconds from Job start. Leave unset for no deadline.
+  activeDeadlineSeconds:
+  restartPolicy: "Never"
+  command: []
+  args: []
+  # envFrom references (ConfigMaps or Secrets) injected into the job container.
+  envFrom: []
+  # Per-job image override. Falls back to the top-level image values if not set.
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  # Per-job resource override. Falls back to top-level resources if not set.
+  resources: {}

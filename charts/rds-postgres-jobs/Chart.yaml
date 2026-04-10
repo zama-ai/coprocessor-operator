@@ -1,0 +1,5 @@
+apiVersion: v2
+name: rds-postgres-jobs
+description: Helm chart for coprocessor RDS PostgreSQL operation jobs
+type: application
+version: 0.1.0

@@ -4,9 +4,9 @@ set -euo pipefail
 # =============================================================================
 #  Coprocessor Secret Bootstrap
 #
-#  Creates all Kubernetes secrets required by the coprocessor stack.
-#  RDS user passwords are generated automatically and stored only in secrets.
-#  Idempotent — safe to re-run (uses kubectl apply).
+#  Creates all Kubernetes secrets required by the Coprocessor stack.
+#  RDS user passwords are generated automatically and stored only in K8s Cecrets.
+#  Idempotent — safe to re-run.
 #
 #  Prerequisites:
 #    - kubectl configured against the target cluster
@@ -30,6 +30,7 @@ echo "[ 1/2 ] RDS user passwords"
 if kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
   echo "  skipping — secrets already exist"
 else
+  # ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
   COPROCESSOR_PASS=$(openssl rand -base64 32 | tr -d '/+=')
   EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
 
