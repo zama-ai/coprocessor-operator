@@ -1,0 +1,12 @@
+releases:
+  - name: coprocessor-db-user-setup
+    namespace: coproc-admin
+    chart: ../charts/rds-postgres-jobs
+    values:
+      - helm-values/rds-user-creation.yaml
+
+  - name: coprocessor-ciphertext-restore
+    namespace: coproc-admin
+    chart: ../charts/rds-postgres-jobs
+    values:
+      - helm-values/rds-ciphertext-restore.yaml

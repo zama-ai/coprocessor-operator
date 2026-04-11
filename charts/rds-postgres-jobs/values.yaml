@@ -20,7 +20,8 @@ serviceAccountName: ""
 # Environment variables injected into the job container.
 env: []
 
-# Init containers run before the job container. Full Kubernetes initContainer spec.
+# Init containers run before the job container. Use image.repository and image.tag
+# instead of a combined image string — the template constructs "repository:tag".
 initContainers: []
 
 # Volumes and mounts available to all containers (init and job).

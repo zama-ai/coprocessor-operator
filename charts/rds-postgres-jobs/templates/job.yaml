@@ -44,9 +44,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: {{ .Values.job.restartPolicy | default "Never" }}
-      {{- with .Values.initContainers }}
+      {{- if .Values.initContainers }}
       initContainers:
-        {{- toYaml . | nindent 8 }}
+        {{- range .Values.initContainers }}
+        - image: "{{ .image.repository }}:{{ .image.tag }}"
+          {{- omit . "image" | toYaml | nindent 10 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}

@@ -25,7 +25,7 @@ apply_secret() {
 #  RDS user passwords (auto-generated, skipped if already exist)
 # =============================================================================
 echo ""
-echo "[ 1/2 ] RDS user passwords"
+echo "[ 1/3 ] RDS user passwords"
 
 if kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
   echo "  skipping — secrets already exist"
@@ -50,10 +50,34 @@ else
 fi
 
 # =============================================================================
+#  Registry credentials
+# =============================================================================
+echo ""
+echo "[ 2/3 ] Registry credentials"
+echo "        (hub.zama.org service account credentials)"
+echo ""
+
+read -rp  "  Registry server:    " REGISTRY_SERVER
+read -rsp "  Registry username:  " REGISTRY_USER; echo
+read -rsp "  Registry password:  " REGISTRY_PASS; echo
+
+echo ""
+echo "  registry-credentials"
+for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
+  kubectl create secret docker-registry registry-credentials \
+    --namespace "$NS" \
+    --docker-server="$REGISTRY_SERVER" \
+    --docker-username="$REGISTRY_USER" \
+    --docker-password="$REGISTRY_PASS" \
+    --dry-run=client -o yaml | kubectl apply -f - > /dev/null
+  echo "    ✓ $NS/registry-credentials"
+done
+
+# =============================================================================
 #  Grafana Cloud credentials
 # =============================================================================
 echo ""
-echo "[ 2/2 ] Grafana Cloud credentials"
+echo "[ 3/3 ] Grafana Cloud credentials"
 echo "        (Provided by Zama)"
 echo ""
 
