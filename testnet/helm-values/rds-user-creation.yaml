@@ -9,6 +9,25 @@ image:
   repository: hub.zama.org/zama-protocol/zama.ai/postgres
   tag: "17-dev"
 
+initContainers:
+  - name: fetch-rds-secret
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        aws secretsmanager get-secret-value \
+          --secret-id "$RDS_SECRET_ARN" \
+          --query SecretString \
+          --output text > /shared/rds-master.json
+    env:
+      - name: RDS_SECRET_ARN
+        value: "" # CHANGE ME: ARN of the RDS master credentials secret in AWS Secrets Manager
+    volumeMounts:
+      - name: shared-creds
+        mountPath: /shared
+
 job:
   enabled: true
   ttlSecondsAfterFinished: 600
@@ -30,25 +49,24 @@ job:
 
       psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
         -v ON_ERROR_STOP=1 \
-        -v app_user=coprocessor_user \
         -v app_password="$COPROCESSOR_USER_RDS_PASSWORD" \
         -v exporter_password="$POSTGRES_EXPORTER_RDS_PASSWORD" <<'EOSQL'
 
       -- coprocessor application user
       SELECT EXISTS (
-        SELECT 1 FROM pg_roles WHERE rolname = :'app_user'
+        SELECT 1 FROM pg_roles WHERE rolname = 'coprocessor_user'
       ) AS role_exists \gset
 
       \if :role_exists
-        ALTER ROLE :"app_user" WITH LOGIN PASSWORD :'app_password';
+        ALTER ROLE coprocessor_user WITH LOGIN PASSWORD :'app_password';
       \else
-        CREATE ROLE :"app_user" WITH LOGIN PASSWORD :'app_password';
+        CREATE ROLE coprocessor_user WITH LOGIN PASSWORD :'app_password';
       \endif
 
-      GRANT CONNECT ON DATABASE coprocessor TO :"app_user";
-      GRANT CREATE ON DATABASE coprocessor TO :"app_user";
-      GRANT USAGE, CREATE ON SCHEMA public TO :"app_user";
-      ALTER SCHEMA public OWNER TO :"app_user";
+      GRANT CONNECT ON DATABASE coprocessor TO coprocessor_user;
+      GRANT CREATE ON DATABASE coprocessor TO coprocessor_user;
+      GRANT USAGE, CREATE ON SCHEMA public TO coprocessor_user;
+      ALTER SCHEMA public OWNER TO coprocessor_user;
 
       -- postgres-exporter monitoring user
       SELECT EXISTS (
@@ -77,25 +95,6 @@ env:
       secretKeyRef:
         name: postgres-exporter-rds-credentials
         key: password
-
-initContainers:
-  - name: fetch-rds-secret
-    image:
-      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
-      tag: "2.30-dev"
-    command: ["/bin/sh", "-c"]
-    args:
-      - |
-        aws secretsmanager get-secret-value \
-          --secret-id "$RDS_SECRET_ARN" \
-          --query SecretString \
-          --output text > /shared/rds-master.json
-    env:
-      - name: RDS_SECRET_ARN
-        value: arn:aws:secretsmanager:eu-west-1:187242616723:secret:rds!db-4480ec54-8979-4529-afda-cdf4badc8a33-IH1C7n
-    volumeMounts:
-      - name: shared-creds
-        mountPath: /shared
 
 volumes:
   - name: shared-creds

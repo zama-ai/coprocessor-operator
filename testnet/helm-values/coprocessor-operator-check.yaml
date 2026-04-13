@@ -1,0 +1,5 @@
+checks:
+  aws:
+    storageHostname: "foo.bar.com" # CHANGE ME: set Cloudflare custom hostname for coprocessor S3 bucket
+  db:
+    rdsSecretArn: "" # CHANGE ME: ARN of the RDS master credentials secret in AWS Secrets Manager

@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "rds-postgres-jobs.fullname" . }}
-  namespace: {{ include "rds-postgres-jobs.namespace" . }}
+  name: {{ include "coprocessor-rds-postgres-jobs.fullname" . }}
+  namespace: {{ include "coprocessor-rds-postgres-jobs.namespace" . }}
   labels:
-    {{- include "rds-postgres-jobs.labels" . | nindent 4 }}
+    {{- include "coprocessor-rds-postgres-jobs.labels" . | nindent 4 }}
   {{- with .Values.job.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -27,7 +27,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "rds-postgres-jobs.selectorLabels" . | nindent 8 }}
+        {{- include "coprocessor-rds-postgres-jobs.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

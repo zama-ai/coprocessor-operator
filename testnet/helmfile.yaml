@@ -1,12 +1,19 @@
 releases:
   - name: coprocessor-db-user-setup
     namespace: coproc-admin
-    chart: ../charts/rds-postgres-jobs
+    chart: ../charts/coprocessor-rds-postgres-jobs
     values:
       - helm-values/rds-user-creation.yaml
 
-  - name: coprocessor-ciphertext-restore
+  # Ciphertext restore is a one-time seeding operation, enabled in a future release.
+  # - name: coprocessor-ciphertext-restore
+  #   namespace: coproc-admin
+  #   chart: ../charts/coprocessor-rds-postgres-jobs
+  #   values:
+  #     - helm-values/rds-ciphertext-restore.yaml
+
+  - name: coprocessor-operator-check
     namespace: coproc-admin
-    chart: ../charts/rds-postgres-jobs
+    chart: ../charts/coprocessor-operator-check
     values:
-      - helm-values/rds-ciphertext-restore.yaml
+      - helm-values/coprocessor-operator-check.yaml

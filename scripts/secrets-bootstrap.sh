@@ -4,9 +4,13 @@ set -euo pipefail
 # =============================================================================
 #  Coprocessor Secret Bootstrap
 #
-#  Creates all Kubernetes secrets required by the Coprocessor stack.
-#  RDS user passwords are generated automatically and stored only in K8s Cecrets.
+#  Creates Kubernetes secrets required by the Coprocessor stack.
+#  RDS user passwords are generated automatically and stored only in K8s Secrets.
 #  Idempotent — safe to re-run.
+#
+#  Usage:
+#    ./secrets-bootstrap.sh            Apply secrets to the cluster
+#    ./secrets-bootstrap.sh --dry-run  Print manifests without applying
 #
 #  Prerequisites:
 #    - kubectl configured against the target cluster
@@ -14,11 +18,22 @@ set -euo pipefail
 #    - Namespaces already created (via Terraform)
 # =============================================================================
 
+DRY_RUN=false
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=true
+  echo "  (dry-run mode — no secrets will be written)"
+fi
+
 apply_secret() {
   local name=$1 namespace=$2; shift 2
-  kubectl create secret generic "$name" --namespace "$namespace" "$@" \
-    --dry-run=client -o yaml | kubectl apply -f - > /dev/null
-  echo "    ✓ $namespace/$name"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    kubectl create secret generic "$name" --namespace "$namespace" "$@" \
+      --dry-run=client -o yaml
+  else
+    kubectl create secret generic "$name" --namespace "$namespace" "$@" \
+      --dry-run=client -o yaml | kubectl apply -f - > /dev/null
+    echo "    ✓ $namespace/$name"
+  fi
 }
 
 # =============================================================================
@@ -27,7 +42,7 @@ apply_secret() {
 echo ""
 echo "[ 1/3 ] RDS user passwords"
 
-if kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
   echo "  skipping — secrets already exist"
 else
   # ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
@@ -47,6 +62,11 @@ else
   apply_secret postgres-exporter-rds-credentials coproc-admin \
     --from-literal=username="postgres_exporter" \
     --from-literal=password="$EXPORTER_PASS"
+
+  echo ""
+  echo "  postgres-exporter-config (monitoring — consumed by prometheus-postgres-exporter)"
+  apply_secret postgres-exporter-config monitoring \
+    --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
 fi
 
 # =============================================================================
@@ -63,14 +83,23 @@ read -rsp "  Registry password:  " REGISTRY_PASS; echo
 
 echo ""
 echo "  registry-credentials"
-for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
-  kubectl create secret docker-registry registry-credentials \
-    --namespace "$NS" \
-    --docker-server="$REGISTRY_SERVER" \
-    --docker-username="$REGISTRY_USER" \
-    --docker-password="$REGISTRY_PASS" \
-    --dry-run=client -o yaml | kubectl apply -f - > /dev/null
-  echo "    ✓ $NS/registry-credentials"
+for NS in coproc coproc-admin gw-blockchain eth-blockchain kube-system monitoring karpenter; do
+  if [[ "$DRY_RUN" == "true" ]]; then
+    kubectl create secret docker-registry registry-credentials \
+      --namespace "$NS" \
+      --docker-server="$REGISTRY_SERVER" \
+      --docker-username="$REGISTRY_USER" \
+      --docker-password="$REGISTRY_PASS" \
+      --dry-run=client -o yaml
+  else
+    kubectl create secret docker-registry registry-credentials \
+      --namespace "$NS" \
+      --docker-server="$REGISTRY_SERVER" \
+      --docker-username="$REGISTRY_USER" \
+      --docker-password="$REGISTRY_PASS" \
+      --dry-run=client -o yaml | kubectl apply -f - > /dev/null
+    echo "    ✓ $NS/registry-credentials"
+  fi
 done
 
 # =============================================================================
