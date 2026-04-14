@@ -61,7 +61,7 @@ initContainers:
           --output text > /shared/rds-master.json
     env:
       - name: RDS_SECRET_ARN
-        value: arn:aws:secretsmanager:eu-west-1:187242616723:secret:rds!db-28cae39b-b82a-4c1a-b79b-34cad3a27182-gIfgku
+        value: "" # CHANGE ME: ARN of the RDS master credentials secret in AWS Secrets Manager
     volumeMounts:
       - name: shared-creds
         mountPath: /shared
@@ -76,7 +76,7 @@ initContainers:
         aws s3 cp "$S3_DUMP_URI" /dump/ciphertexts_dir/ --recursive
     env:
       - name: S3_DUMP_URI
-        value: "s3://acme-testnet-coprocessor-120c905f/ciphertexts_dir"
+        value: "" # CHANGE ME: S3 URI of the ciphertexts dump directory (e.g. s3://my-bucket/ciphertexts_dir)
     volumeMounts:
       - name: dump
         mountPath: /dump

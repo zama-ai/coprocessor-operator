@@ -12,6 +12,16 @@ set -euo pipefail
 #    ./secrets-bootstrap.sh            Apply secrets to the cluster
 #    ./secrets-bootstrap.sh --dry-run  Print manifests without applying
 #
+#  Environment variables (optional — skip interactive prompts when set):
+#    REGISTRY_USER, REGISTRY_PASS
+#    PROMETHEUS_USER, PROMETHEUS_PASS
+#    LOKI_USER, LOKI_PASS
+#    OTLP_USER, OTLP_PASS
+#
+#  Examples:
+#    source .env && ./secrets-bootstrap.sh
+#    REGISTRY_USER=robot REGISTRY_PASS=token ./secrets-bootstrap.sh
+#
 #  Prerequisites:
 #    - kubectl configured against the target cluster
 #    - openssl available (macOS/Linux default)
@@ -77,9 +87,13 @@ echo "[ 2/3 ] Registry credentials"
 echo "        (hub.zama.org service account credentials)"
 echo ""
 
-read -rp  "  Registry server:    " REGISTRY_SERVER
-read -rsp "  Registry username:  " REGISTRY_USER; echo
-read -rsp "  Registry password:  " REGISTRY_PASS; echo
+REGISTRY_SERVER="hub.zama.org"
+if [[ -z "${REGISTRY_USER:-}" ]]; then
+  read -rsp "  Registry username:  " REGISTRY_USER; echo
+fi
+if [[ -z "${REGISTRY_PASS:-}" ]]; then
+  read -rsp "  Registry password:  " REGISTRY_PASS; echo
+fi
 
 echo ""
 echo "  registry-credentials"
@@ -110,16 +124,28 @@ echo "[ 3/3 ] Grafana Cloud credentials"
 echo "        (Provided by Zama)"
 echo ""
 
-read -rsp "  Prometheus username (ID):     " PROMETHEUS_USER; echo
-read -rsp "  Prometheus password (token):  " PROMETHEUS_PASS; echo
+if [[ -z "${PROMETHEUS_USER:-}" ]]; then
+  read -rsp "  Prometheus username (ID):     " PROMETHEUS_USER; echo
+fi
+if [[ -z "${PROMETHEUS_PASS:-}" ]]; then
+  read -rsp "  Prometheus password (token):  " PROMETHEUS_PASS; echo
+fi
 
 echo ""
-read -rsp "  Loki username (ID):           " LOKI_USER; echo
-read -rsp "  Loki password (token):        " LOKI_PASS; echo
+if [[ -z "${LOKI_USER:-}" ]]; then
+  read -rsp "  Loki username (ID):           " LOKI_USER; echo
+fi
+if [[ -z "${LOKI_PASS:-}" ]]; then
+  read -rsp "  Loki password (token):        " LOKI_PASS; echo
+fi
 
 echo ""
-read -rsp "  Tempo username (ID):          " OTLP_USER; echo
-read -rsp "  Tempo password (token):       " OTLP_PASS; echo
+if [[ -z "${OTLP_USER:-}" ]]; then
+  read -rsp "  OTLP username (ID):           " OTLP_USER; echo
+fi
+if [[ -z "${OTLP_PASS:-}" ]]; then
+  read -rsp "  OTLP password (token):        " OTLP_PASS; echo
+fi
 
 echo ""
 echo "  grafana-cloud-credentials"
