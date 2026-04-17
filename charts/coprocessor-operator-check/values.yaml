@@ -100,8 +100,6 @@ checks:
       echo "│ db-check"
       echo "├─────────────────────────────────────────────────"
 
-      apk add --no-cache jq >/dev/null 2>&1
-
       MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
       MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
       export PGPASSWORD="$MASTER_PASS"
@@ -133,7 +131,7 @@ awsCli:
 postgres:
   image:
     repository: hub.zama.org/zama-protocol/zama.ai/postgres
-    tag: "17-dev"
+    tag: "18-dev"
 
 kubectl:
   image:

@@ -43,8 +43,6 @@ job:
     - |
       set -euo pipefail
 
-      apk add --no-cache jq
-
       MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
       MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
 
