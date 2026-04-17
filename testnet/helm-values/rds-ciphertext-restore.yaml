@@ -1,0 +1,96 @@
+fullnameOverride: coprocessor-ciphertext-restore
+
+imagePullSecrets:
+  - name: registry-credentials
+
+serviceAccountName: db-admin
+
+image:
+  repository: hub.zama.org/zama-protocol/zama.ai/postgres
+  tag: "17-dev"
+
+job:
+  enabled: true
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  restartPolicy: Never
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - |
+      set -euo pipefail
+
+      apk add --no-cache jq
+
+      MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
+      MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
+
+      export PGPASSWORD="$MASTER_PASS"
+      export PGSSLMODE=require
+
+      echo "Restoring ciphertexts table..."
+      pg_restore \
+        --host=coprocessor-database.coproc.svc.cluster.local \
+        --port=5432 \
+        --username="$MASTER_USER" \
+        --dbname=coprocessor \
+        --no-owner \
+        --no-privileges \
+        --table=ciphertexts \
+        --jobs=8 \
+        /dump/ciphertexts_dir/
+
+      echo "Transferring ownership to coprocessor_user..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -c "ALTER TABLE ciphertexts OWNER TO coprocessor_user;"
+
+      echo "Restore complete ✅"
+
+initContainers:
+  - name: fetch-rds-secret
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        aws secretsmanager get-secret-value \
+          --secret-id "$RDS_SECRET_ARN" \
+          --query SecretString \
+          --output text > /shared/rds-master.json
+    env:
+      - name: RDS_SECRET_ARN
+        value: "" # CHANGE ME: ARN of the RDS master credentials secret in AWS Secrets Manager
+    volumeMounts:
+      - name: shared-creds
+        mountPath: /shared
+
+  - name: download-dump
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        aws s3 cp "$S3_DUMP_URI" /dump/ciphertexts_dir/ --recursive
+    env:
+      - name: S3_DUMP_URI
+        value: "" # CHANGE ME: S3 URI of the ciphertexts dump directory (e.g. s3://my-bucket/ciphertexts_dir)
+    volumeMounts:
+      - name: dump
+        mountPath: /dump
+
+volumes:
+  - name: shared-creds
+    emptyDir:
+      medium: Memory
+  - name: dump
+    emptyDir:
+      sizeLimit: 15Gi
+
+volumeMounts:
+  - name: shared-creds
+    mountPath: /shared
+  - name: dump
+    mountPath: /dump

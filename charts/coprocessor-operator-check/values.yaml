@@ -1,0 +1,167 @@
+checks:
+  k8s:
+    script: |
+      FAILED=0
+
+      check_ns() {
+        if kubectl get namespace "$1" &>/dev/null; then
+          echo "  ✓ namespace/$1"
+        else
+          echo "  ✗ namespace/$1  <-- MISSING"
+          FAILED=$((FAILED + 1))
+        fi
+      }
+
+      check_secret() {
+        local name=$1 namespace=$2
+        if kubectl get secret "$name" --namespace "$namespace" &>/dev/null; then
+          echo "  ✓ $namespace/$name"
+        else
+          echo "  ✗ $namespace/$name  <-- MISSING"
+          FAILED=$((FAILED + 1))
+        fi
+      }
+
+      check_externalname_svc() {
+        local name=$1 namespace=$2
+        if kubectl get service "$name" --namespace "$namespace" &>/dev/null; then
+          SVC_TYPE=$(kubectl get service "$name" --namespace "$namespace" -o jsonpath='{.spec.type}')
+          if [ "$SVC_TYPE" = "ExternalName" ]; then
+            HOSTNAME=$(kubectl get service "$name" --namespace "$namespace" -o jsonpath='{.spec.externalName}')
+            echo "  ✓ $namespace/$name (ExternalName → $HOSTNAME)"
+          else
+            echo "  ✗ $namespace/$name exists but is type $SVC_TYPE, expected ExternalName"
+            FAILED=$((FAILED + 1))
+          fi
+        else
+          echo "  ✗ $namespace/$name  <-- MISSING"
+          FAILED=$((FAILED + 1))
+        fi
+      }
+
+      echo "┌─────────────────────────────────────────────────"
+      echo "│ k8s-check"
+      echo "├─────────────────────────────────────────────────"
+
+      echo " -- Namespaces --"
+      for NS in coproc coproc-admin gw-blockchain eth-blockchain monitoring; do
+        check_ns "$NS"
+      done
+
+      echo " -- Secrets --"
+      for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
+        check_secret coprocessor-user-rds-credentials "$NS"
+        check_secret registry-credentials "$NS"
+      done
+      check_secret postgres-exporter-rds-credentials coproc-admin
+      check_secret postgres-exporter-config monitoring
+      check_secret grafana-cloud-credentials monitoring
+
+      echo " -- ExternalName services --"
+      check_externalname_svc coprocessor-database coproc
+
+      if [ "$FAILED" -gt 0 ]; then
+        echo "  k8s-check FAILED: $FAILED check(s) — ensure Terraform has run and secrets-bootstrap.sh has been executed"
+        echo "└─────────────────────────────────────────────────"
+        exit 1
+      fi
+      echo "  k8s-check passed"
+      echo "└─────────────────────────────────────────────────"
+
+  aws:
+    # Custom hostname fronting the coprocessor S3 bucket
+    storageHostname: ""
+    script: |
+      echo "┌─────────────────────────────────────────────────"
+      echo "│ aws-check"
+      echo "├─────────────────────────────────────────────────"
+
+      echo " -- S3 custom hostname --"
+      RESPONSE=$(curl -s --max-time 10 "https://${STORAGE_HOSTNAME}")
+      HTTP_STATUS=$(curl -so /dev/null -w "%{http_code}" --max-time 10 "https://${STORAGE_HOSTNAME}")
+      echo "  https://${STORAGE_HOSTNAME} → $HTTP_STATUS"
+      if [ "$HTTP_STATUS" = "200" ] && echo "$RESPONSE" | grep -q "ListBucketResult"; then
+        echo "  ✓ S3 bucket reachable and listing confirmed"
+      else
+        echo "  ✗ expected 200 with ListBucketResult, got $HTTP_STATUS"
+        echo "  aws-check FAILED"
+        echo "└─────────────────────────────────────────────────"
+        exit 1
+      fi
+
+      echo "  aws-check passed"
+      echo "└─────────────────────────────────────────────────"
+
+  db:
+    # ARN of the RDS master credentials secret in AWS Secrets Manager
+    rdsSecretArn: ""
+    script: |
+      echo "┌─────────────────────────────────────────────────"
+      echo "│ db-check"
+      echo "├─────────────────────────────────────────────────"
+
+      apk add --no-cache jq >/dev/null 2>&1
+
+      MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
+      MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
+      export PGPASSWORD="$MASTER_PASS"
+
+      CONN="host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require"
+
+      echo " -- Roles --"
+      psql "$CONN" -c "SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname IN ('coprocessor_user', 'postgres_exporter');"
+
+      echo " -- coprocessor_user schema ownership --"
+      psql "$CONN" -c "SELECT schema_name, schema_owner FROM information_schema.schemata WHERE schema_owner = 'coprocessor_user';"
+
+      echo " -- postgres_exporter pg_monitor membership --"
+      psql "$CONN" -c "SELECT rolname FROM pg_roles WHERE pg_has_role('postgres_exporter', oid, 'member') AND rolname = 'pg_monitor';"
+
+      echo "  db-check passed"
+      echo "└─────────────────────────────────────────────────"
+
+kubeUtils:
+  image:
+    repository: hub.zama.org/zama-protocol/zama-ai/security-hub/infra/kube-utils
+    tag: v0.4.0
+
+awsCli:
+  image:
+    repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+    tag: "2.30-dev"
+
+postgres:
+  image:
+    repository: hub.zama.org/zama-protocol/zama.ai/postgres
+    tag: "17-dev"
+
+kubectl:
+  image:
+    repository: hub.zama.org/zama-protocol/zama.ai/kubectl
+    tag: "1.34-dev"
+
+job:
+  ttlSecondsAfterFinished: 300
+
+# Pod-level security context (e.g. fsGroup, runAsGroup).
+podSecurityContext: {}
+
+# Container-level security context applied to every container in the check job.
+# Dropping all capabilities is safe even for containers that run as root (e.g. apk add).
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+
+imagePullSecrets:
+  - name: registry-credentials
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  name: "db-admin"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
