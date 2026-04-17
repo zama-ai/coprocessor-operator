@@ -7,7 +7,7 @@ serviceAccountName: db-admin
 
 image:
   repository: hub.zama.org/zama-protocol/zama.ai/postgres
-  tag: "17-dev"
+  tag: "18-dev"
 
 job:
   enabled: true
@@ -56,12 +56,15 @@ initContainers:
     args:
       - |
         aws secretsmanager get-secret-value \
-          --secret-id "$RDS_SECRET_ARN" \
+          --secret-id "$RDS_ADMIN_SECRET_ID" \
           --query SecretString \
           --output text > /shared/rds-master.json
     env:
-      - name: RDS_SECRET_ARN
-        value: "" # CHANGE ME: ARN of the RDS master credentials secret in AWS Secrets Manager
+      - name: RDS_ADMIN_SECRET_ID
+        valueFrom:
+          configMapKeyRef:
+            name: rds-admin-secret-id
+            key: "RDS_ADMIN_SECRET_ID"
     volumeMounts:
       - name: shared-creds
         mountPath: /shared
