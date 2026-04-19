@@ -6,7 +6,7 @@ A Helm chart to execute Coprocessor Operator pre-flight check Jobs before instal
 
 This chart runs a single Kubernetes Job as a `pre-install,pre-upgrade` Helm hook. The job executes three sequential checks via init containers:
 
-1. **k8s-check** — asserts that required namespaces, secrets, and ExternalName services exist in the cluster
+1. **k8s-check** — asserts that required namespaces, secrets, configmap, and ExternalName services exist in the cluster
 2. **aws-check** — verifies the coprocessor S3 bucket is reachable via its Cloudflare custom hostname
 3. **fetch-rds-secret** — fetches the RDS master credentials from AWS Secrets Manager into a shared in-memory volume
 4. **db-check** (main container) — validates that the `coprocessor_user` and `postgres_exporter` roles exist with the correct permissions
@@ -38,9 +38,8 @@ kubectl logs -n coproc-admin -l app=coprocessor-operator-check --all-containers 
 |-----------|-------------|
 | `checks.aws.storageHostname` | Cloudflare custom hostname fronting the coprocessor S3 bucket |
 
-These must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
+Must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
 
-The RDS master secret ID is sourced from the existing `rds-admin-secret-id` ConfigMap (key `RDS_ADMIN_SECRET_ID`) rather than chart values — see [Prerequisites](#prerequisites).
 
 ### Key Parameters
 
