@@ -17,9 +17,10 @@ Any failing check exits non-zero and blocks the Helm release from proceeding.
 
 * `db-admin` ServiceAccount with an IRSA role that can:
     * `secretsmanager:GetSecretValue` on the RDS master credentials secret
-* Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname)
+* Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname, `rds-admin-secret-id` ConfigMap)
 * `secrets-bootstrap.sh` executed (populates `coprocessor-user-rds-credentials`, `registry-credentials`, etc.)
-* `rds-admin-secret-id` ConfigMap present in the release namespace with key `RDS_ADMIN_SECRET_ID` holding the ARN/ID of the RDS master credentials secret
+
+The `rds-admin-secret-id` ConfigMap is expected in the release namespace (`coproc-admin`) with key `RDS_ADMIN_SECRET_ID` holding the ID of the RDS master credentials secret in AWS Secrets Manager.
 
 ## Usage
 
@@ -39,7 +40,7 @@ kubectl logs -n coproc-admin -l app=coprocessor-operator-check --all-containers 
 
 These must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
 
-The RDS master secret ID is read from the `rds-admin-secret-id` ConfigMap (key `RDS_ADMIN_SECRET_ID`) rather than chart values.
+The RDS master secret ID is sourced from the existing `rds-admin-secret-id` ConfigMap (key `RDS_ADMIN_SECRET_ID`) rather than chart values — see [Prerequisites](#prerequisites).
 
 ### Key Parameters
 
