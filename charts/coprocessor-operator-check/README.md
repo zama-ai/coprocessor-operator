@@ -19,6 +19,7 @@ Any failing check exits non-zero and blocks the Helm release from proceeding.
     * `secretsmanager:GetSecretValue` on the RDS master credentials secret
 * Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname)
 * `secrets-bootstrap.sh` executed (populates `coprocessor-user-rds-credentials`, `registry-credentials`, etc.)
+* `rds-admin-secret-id` ConfigMap present in the release namespace with key `RDS_ADMIN_SECRET_ID` holding the ARN/ID of the RDS master credentials secret
 
 ## Usage
 
@@ -35,9 +36,10 @@ kubectl logs -n coproc-admin -l app=coprocessor-operator-check --all-containers 
 | Parameter | Description |
 |-----------|-------------|
 | `checks.aws.storageHostname` | Cloudflare custom hostname fronting the coprocessor S3 bucket |
-| `checks.db.rdsSecretArn` | ARN of the RDS master credentials secret in AWS Secrets Manager |
 
 These must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
+
+The RDS master secret ID is read from the `rds-admin-secret-id` ConfigMap (key `RDS_ADMIN_SECRET_ID`) rather than chart values.
 
 ### Key Parameters
 
@@ -63,7 +65,6 @@ checks:
     script: |
       # ...
   db:
-    rdsSecretArn: "arn:aws:secretsmanager:..."
     script: |
       # ...
 ```
@@ -72,7 +73,7 @@ checks:
 
 * The Job runs with `capabilities.drop: [ALL]` on all containers by default
 * RDS credentials fetched from Secrets Manager are written to an `emptyDir` volume backed by memory (`medium: Memory`), never touching disk
-* The ClusterRole is scoped to only `get`/`list` on `namespaces`, `secrets`, and `services` — no wildcard access
+* The ClusterRole is scoped to only `get`/`list` on `namespaces`, `secrets`, `services`, and `configmaps` — no wildcard access
 * RBAC resources are deleted on hook success (`hook-delete-policy: before-hook-creation,hook-succeeded`)
 
 ## Values

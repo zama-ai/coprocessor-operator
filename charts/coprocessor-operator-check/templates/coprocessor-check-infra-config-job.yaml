@@ -71,12 +71,15 @@ spec:
             - -c
             - |
               aws secretsmanager get-secret-value \
-                --secret-id "$RDS_SECRET_ARN" \
+                --secret-id "$RDS_ADMIN_SECRET_ID" \
                 --query SecretString \
                 --output text > /shared/rds-master.json
           env:
-            - name: RDS_SECRET_ARN
-              value: {{ .Values.checks.db.rdsSecretArn }}
+            - name: RDS_ADMIN_SECRET_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-admin-secret-id
+                  key: "RDS_ADMIN_SECRET_ID"
           volumeMounts:
             - name: shared-creds
               mountPath: /shared

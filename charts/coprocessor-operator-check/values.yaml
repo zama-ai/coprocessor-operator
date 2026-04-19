@@ -39,6 +39,22 @@ checks:
         fi
       }
 
+      check_configmap_key() {
+        local name=$1 namespace=$2 key=$3
+        if kubectl get configmap "$name" --namespace "$namespace" &>/dev/null; then
+          VALUE=$(kubectl get configmap "$name" --namespace "$namespace" -o jsonpath="{.data.$key}")
+          if [ -n "$VALUE" ]; then
+            echo "  ✓ $namespace/$name[$key]"
+          else
+            echo "  ✗ $namespace/$name exists but key '$key' is missing or empty"
+            FAILED=$((FAILED + 1))
+          fi
+        else
+          echo "  ✗ $namespace/$name  <-- MISSING"
+          FAILED=$((FAILED + 1))
+        fi
+      }
+
       echo "┌─────────────────────────────────────────────────"
       echo "│ k8s-check"
       echo "├─────────────────────────────────────────────────"
@@ -59,6 +75,9 @@ checks:
 
       echo " -- ExternalName services --"
       check_externalname_svc coprocessor-database coproc
+
+      echo " -- ConfigMaps --"
+      check_configmap_key rds-admin-secret-id coproc-admin RDS_ADMIN_SECRET_ID
 
       if [ "$FAILED" -gt 0 ]; then
         echo "  k8s-check FAILED: $FAILED check(s) — ensure Terraform has run and secrets-bootstrap.sh has been executed"
@@ -93,8 +112,6 @@ checks:
       echo "└─────────────────────────────────────────────────"
 
   db:
-    # ARN of the RDS master credentials secret in AWS Secrets Manager
-    rdsSecretArn: ""
     script: |
       echo "┌─────────────────────────────────────────────────"
       echo "│ db-check"
