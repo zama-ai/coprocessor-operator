@@ -8,7 +8,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups: [""]
-    resources: ["namespaces", "secrets", "services"]
+    resources: ["namespaces", "secrets", "services", "configmaps"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

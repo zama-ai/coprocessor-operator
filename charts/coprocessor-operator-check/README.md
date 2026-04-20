@@ -6,7 +6,7 @@ A Helm chart to execute Coprocessor Operator pre-flight check Jobs before instal
 
 This chart runs a single Kubernetes Job as a `pre-install,pre-upgrade` Helm hook. The job executes three sequential checks via init containers:
 
-1. **k8s-check** — asserts that required namespaces, secrets, and ExternalName services exist in the cluster
+1. **k8s-check** — asserts that required namespaces, secrets, configmap, and ExternalName services exist in the cluster
 2. **aws-check** — verifies the coprocessor S3 bucket is reachable via its Cloudflare custom hostname
 3. **fetch-rds-secret** — fetches the RDS master credentials from AWS Secrets Manager into a shared in-memory volume
 4. **db-check** (main container) — validates that the `coprocessor_user` and `postgres_exporter` roles exist with the correct permissions
@@ -17,8 +17,10 @@ Any failing check exits non-zero and blocks the Helm release from proceeding.
 
 * `db-admin` ServiceAccount with an IRSA role that can:
     * `secretsmanager:GetSecretValue` on the RDS master credentials secret
-* Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname)
+* Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname, `rds-admin-secret-id` ConfigMap)
 * `secrets-bootstrap.sh` executed (populates `coprocessor-user-rds-credentials`, `registry-credentials`, etc.)
+
+The `rds-admin-secret-id` ConfigMap is expected in the release namespace (`coproc-admin`) with key `RDS_ADMIN_SECRET_ID` holding the ID of the RDS master credentials secret in AWS Secrets Manager.
 
 ## Usage
 
@@ -35,9 +37,9 @@ kubectl logs -n coproc-admin -l app=coprocessor-operator-check --all-containers 
 | Parameter | Description |
 |-----------|-------------|
 | `checks.aws.storageHostname` | Cloudflare custom hostname fronting the coprocessor S3 bucket |
-| `checks.db.rdsSecretArn` | ARN of the RDS master credentials secret in AWS Secrets Manager |
 
-These must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
+Must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
+
 
 ### Key Parameters
 
@@ -63,7 +65,6 @@ checks:
     script: |
       # ...
   db:
-    rdsSecretArn: "arn:aws:secretsmanager:..."
     script: |
       # ...
 ```
@@ -72,7 +73,7 @@ checks:
 
 * The Job runs with `capabilities.drop: [ALL]` on all containers by default
 * RDS credentials fetched from Secrets Manager are written to an `emptyDir` volume backed by memory (`medium: Memory`), never touching disk
-* The ClusterRole is scoped to only `get`/`list` on `namespaces`, `secrets`, and `services` — no wildcard access
+* The ClusterRole is scoped to only `get`/`list` on `namespaces`, `secrets`, `services`, and `configmaps` — no wildcard access
 * RBAC resources are deleted on hook success (`hook-delete-policy: before-hook-creation,hook-succeeded`)
 
 ## Values
