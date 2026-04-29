@@ -14,6 +14,8 @@ set -euo pipefail
 #
 #  Environment variables (optional — skip interactive prompts when set):
 #    REGISTRY_USER, REGISTRY_PASS
+#    ETHEREUM_RPC_URL, ETHEREUM_RPC_WS_URL
+#    CONDUIT_RPC_URL, CONDUIT_RPC_WS_URL
 #    PROMETHEUS_USER, PROMETHEUS_PASS
 #    LOKI_USER, LOKI_PASS
 #    OTLP_USER, OTLP_PASS
@@ -50,7 +52,7 @@ apply_secret() {
 #  RDS user passwords (auto-generated, skipped if already exist)
 # =============================================================================
 echo ""
-echo "[ 1/3 ] RDS user passwords"
+echo "[ 1/5 ] RDS user passwords"
 
 if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
   echo "  skipping — secrets already exist"
@@ -83,79 +85,139 @@ fi
 #  Registry credentials
 # =============================================================================
 echo ""
-echo "[ 2/3 ] Registry credentials"
+echo "[ 2/5 ] Registry credentials"
 echo "        (hub.zama.org service account credentials)"
-echo ""
 
-REGISTRY_SERVER="hub.zama.org"
-if [[ -z "${REGISTRY_USER:-}" ]]; then
-  read -rsp "  Registry username:  " REGISTRY_USER; echo
-fi
-if [[ -z "${REGISTRY_PASS:-}" ]]; then
-  read -rsp "  Registry password:  " REGISTRY_PASS; echo
-fi
-
-echo ""
-echo "  registry-credentials"
-for NS in coproc coproc-admin gw-blockchain eth-blockchain kube-system monitoring karpenter; do
-  if [[ "$DRY_RUN" == "true" ]]; then
-    kubectl create secret docker-registry registry-credentials \
-      --namespace "$NS" \
-      --docker-server="$REGISTRY_SERVER" \
-      --docker-username="$REGISTRY_USER" \
-      --docker-password="$REGISTRY_PASS" \
-      --dry-run=client -o yaml
-  else
-    kubectl create secret docker-registry registry-credentials \
-      --namespace "$NS" \
-      --docker-server="$REGISTRY_SERVER" \
-      --docker-username="$REGISTRY_USER" \
-      --docker-password="$REGISTRY_PASS" \
-      --dry-run=client -o yaml | kubectl apply -f - > /dev/null
-    echo "    ✓ $NS/registry-credentials"
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret registry-credentials --namespace coproc &>/dev/null; then
+  echo "  skipping — secrets already exist"
+else
+  echo ""
+  REGISTRY_SERVER="hub.zama.org"
+  if [[ -z "${REGISTRY_USER:-}" ]]; then
+    read -rsp "  Registry username:  " REGISTRY_USER; echo
   fi
-done
+  if [[ -z "${REGISTRY_PASS:-}" ]]; then
+    read -rsp "  Registry password:  " REGISTRY_PASS; echo
+  fi
+
+  echo ""
+  echo "  registry-credentials"
+  for NS in coproc coproc-admin gw-blockchain eth-blockchain kube-system monitoring karpenter; do
+    if [[ "$DRY_RUN" == "true" ]]; then
+      kubectl create secret docker-registry registry-credentials \
+        --namespace "$NS" \
+        --docker-server="$REGISTRY_SERVER" \
+        --docker-username="$REGISTRY_USER" \
+        --docker-password="$REGISTRY_PASS" \
+        --dry-run=client -o yaml
+    else
+      kubectl create secret docker-registry registry-credentials \
+        --namespace "$NS" \
+        --docker-server="$REGISTRY_SERVER" \
+        --docker-username="$REGISTRY_USER" \
+        --docker-password="$REGISTRY_PASS" \
+        --dry-run=client -o yaml | kubectl apply -f - > /dev/null
+      echo "    ✓ $NS/registry-credentials"
+    fi
+  done
+fi
 
 # =============================================================================
 #  Grafana Cloud credentials
 # =============================================================================
 echo ""
-echo "[ 3/3 ] Grafana Cloud credentials"
+echo "[ 3/5 ] Grafana Cloud credentials"
 echo "        (Provided by Zama)"
-echo ""
 
-if [[ -z "${PROMETHEUS_USER:-}" ]]; then
-  read -rsp "  Prometheus username (ID):     " PROMETHEUS_USER; echo
-fi
-if [[ -z "${PROMETHEUS_PASS:-}" ]]; then
-  read -rsp "  Prometheus password (token):  " PROMETHEUS_PASS; echo
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret grafana-cloud-credentials --namespace monitoring &>/dev/null; then
+  echo "  skipping — secrets already exist"
+else
+  echo ""
+  if [[ -z "${PROMETHEUS_USER:-}" ]]; then
+    read -rsp "  Prometheus username (ID):     " PROMETHEUS_USER; echo
+  fi
+  if [[ -z "${PROMETHEUS_PASS:-}" ]]; then
+    read -rsp "  Prometheus password (token):  " PROMETHEUS_PASS; echo
+  fi
+
+  echo ""
+  if [[ -z "${LOKI_USER:-}" ]]; then
+    read -rsp "  Loki username (ID):           " LOKI_USER; echo
+  fi
+  if [[ -z "${LOKI_PASS:-}" ]]; then
+    read -rsp "  Loki password (token):        " LOKI_PASS; echo
+  fi
+
+  echo ""
+  if [[ -z "${OTLP_USER:-}" ]]; then
+    read -rsp "  OTLP username (ID):           " OTLP_USER; echo
+  fi
+  if [[ -z "${OTLP_PASS:-}" ]]; then
+    read -rsp "  OTLP password (token):        " OTLP_PASS; echo
+  fi
+
+  echo ""
+  echo "  grafana-cloud-credentials"
+  apply_secret grafana-cloud-credentials monitoring \
+    --from-literal=prometheus-username="$PROMETHEUS_USER" \
+    --from-literal=prometheus-password="$PROMETHEUS_PASS" \
+    --from-literal=loki-username="$LOKI_USER" \
+    --from-literal=loki-password="$LOKI_PASS" \
+    --from-literal=otlp-username="$OTLP_USER" \
+    --from-literal=otlp-password="$OTLP_PASS"
 fi
 
+# =============================================================================
+#  RPC credentials
+# =============================================================================
 echo ""
-if [[ -z "${LOKI_USER:-}" ]]; then
-  read -rsp "  Loki username (ID):           " LOKI_USER; echo
-fi
-if [[ -z "${LOKI_PASS:-}" ]]; then
-  read -rsp "  Loki password (token):        " LOKI_PASS; echo
+echo "[ 4/5 ] RPC credentials"
+echo "        (Ethereum RPC endpoints)"
+
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret rpc-credentials --namespace coproc &>/dev/null; then
+  echo "  skipping — secrets already exist"
+else
+  echo ""
+  if [[ -z "${ETHEREUM_RPC_URL:-}" ]]; then
+    read -rsp "  Ethereum RPC URL:     " ETHEREUM_RPC_URL; echo
+  fi
+  if [[ -z "${ETHEREUM_RPC_WS_URL:-}" ]]; then
+    read -rsp "  Ethereum RPC WS URL:  " ETHEREUM_RPC_WS_URL; echo
+  fi
+
+  echo ""
+  echo "  rpc-credentials"
+  for NS in eth-blockchain gw-blockchain coproc; do
+    apply_secret rpc-credentials "$NS" \
+      --from-literal=ethereum-rpc-url="$ETHEREUM_RPC_URL" \
+      --from-literal=ethereum-rpc-ws-url="$ETHEREUM_RPC_WS_URL"
+  done
 fi
 
+# =============================================================================
+#  Conduit credentials
+# =============================================================================
 echo ""
-if [[ -z "${OTLP_USER:-}" ]]; then
-  read -rsp "  OTLP username (ID):           " OTLP_USER; echo
-fi
-if [[ -z "${OTLP_PASS:-}" ]]; then
-  read -rsp "  OTLP password (token):        " OTLP_PASS; echo
-fi
+echo "[ 5/5 ] Conduit credentials"
+echo "        (Conduit RPC endpoints)"
 
-echo ""
-echo "  grafana-cloud-credentials"
-apply_secret grafana-cloud-credentials monitoring \
-  --from-literal=prometheus-username="$PROMETHEUS_USER" \
-  --from-literal=prometheus-password="$PROMETHEUS_PASS" \
-  --from-literal=loki-username="$LOKI_USER" \
-  --from-literal=loki-password="$LOKI_PASS" \
-  --from-literal=otlp-username="$OTLP_USER" \
-  --from-literal=otlp-password="$OTLP_PASS"
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret conduit-credentials --namespace gw-blockchain &>/dev/null; then
+  echo "  skipping — secrets already exist"
+else
+  echo ""
+  if [[ -z "${CONDUIT_RPC_URL:-}" ]]; then
+    read -rsp "  Conduit RPC URL:      " CONDUIT_RPC_URL; echo
+  fi
+  if [[ -z "${CONDUIT_RPC_WS_URL:-}" ]]; then
+    read -rsp "  Conduit RPC WS URL:   " CONDUIT_RPC_WS_URL; echo
+  fi
+
+  echo ""
+  echo "  conduit-credentials"
+  apply_secret conduit-credentials gw-blockchain \
+    --from-literal=conduit-rpc-url="$CONDUIT_RPC_URL" \
+    --from-literal=conduit-rpc-ws-url="$CONDUIT_RPC_WS_URL"
+fi
 
 echo ""
 echo $'\e[32m✓ Done!\e[0m'

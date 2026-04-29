@@ -77,7 +77,8 @@ checks:
       check_externalname_svc coprocessor-database coproc
 
       echo " -- ConfigMaps --"
-      check_configmap_key rds-admin-secret-id coproc-admin RDS_ADMIN_SECRET_ID
+      check_configmap_key db-admin-config coproc-admin RDS_ADMIN_SECRET_ID
+      check_configmap_key db-admin-config coproc-admin AWS_KMS_KEY_ID
 
       if [ "$FAILED" -gt 0 ]; then
         echo "  k8s-check FAILED: $FAILED check(s) — ensure Terraform has run and secrets-bootstrap.sh has been executed"
@@ -111,6 +112,18 @@ checks:
       echo "  aws-check passed"
       echo "└─────────────────────────────────────────────────"
 
+  kms:
+    script: |
+      echo "┌─────────────────────────────────────────────────"
+      echo "│ kms-check"
+      echo "├─────────────────────────────────────────────────"
+
+      echo " -- tx-sender KMS key (Ethereum address) --"
+      cast wallet address --aws
+
+      echo "  kms-check passed"
+      echo "└─────────────────────────────────────────────────"
+
   db:
     script: |
       echo "┌─────────────────────────────────────────────────"
@@ -132,6 +145,21 @@ checks:
       echo " -- postgres_exporter pg_monitor membership --"
       psql "$CONN" -c "SELECT rolname FROM pg_roles WHERE pg_has_role('postgres_exporter', oid, 'member') AND rolname = 'pg_monitor';"
 
+      echo " -- ciphertexts table + ownership --"
+      OWNER=$(psql "$CONN" -tAc "SELECT tableowner FROM pg_tables WHERE schemaname='public' AND tablename='ciphertexts';")
+      if [ "$OWNER" = "coprocessor_user" ]; then
+        echo "  ✓ public.ciphertexts owned by coprocessor_user"
+      else
+        if [ -z "$OWNER" ]; then
+          echo "  ✗ public.ciphertexts NOT FOUND  <-- run rds-ciphertext-restore"
+        else
+          echo "  ✗ public.ciphertexts owner is '$OWNER', expected 'coprocessor_user'"
+        fi
+        echo "  db-check FAILED"
+        echo "└─────────────────────────────────────────────────"
+        exit 1
+      fi
+
       echo "  db-check passed"
       echo "└─────────────────────────────────────────────────"
 
@@ -145,6 +173,11 @@ awsCli:
     repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
     tag: "2.30-dev"
 
+ethFoundry:
+  image:
+    repository: hub.zama.org/zama-protocol/zama-ai/security-hub/infra/eth-foundry
+    tag: "0.3.1"
+
 postgres:
   image:
     repository: hub.zama.org/zama-protocol/zama.ai/postgres
@@ -157,6 +190,10 @@ kubectl:
 
 job:
   ttlSecondsAfterFinished: 300
+
+# Extra labels applied to the check Job's pod template (e.g. for SecurityGroupPolicy selectors).
+podLabels:
+  network/rds-client: "true"
 
 # Pod-level security context (e.g. fsGroup, runAsGroup).
 podSecurityContext: {}

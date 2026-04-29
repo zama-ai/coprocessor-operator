@@ -17,10 +17,10 @@ Any failing check exits non-zero and blocks the Helm release from proceeding.
 
 * `db-admin` ServiceAccount with an IRSA role that can:
     * `secretsmanager:GetSecretValue` on the RDS master credentials secret
-* Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname, `rds-admin-secret-id` ConfigMap)
+* Terraform provisioned infrastructure (namespaces, RDS, S3 bucket, Cloudflare hostname, `db-admin-config` ConfigMap)
 * `secrets-bootstrap.sh` executed (populates `coprocessor-user-rds-credentials`, `registry-credentials`, etc.)
 
-The `rds-admin-secret-id` ConfigMap is expected in the release namespace (`coproc-admin`) with key `RDS_ADMIN_SECRET_ID` holding the ID of the RDS master credentials secret in AWS Secrets Manager.
+The `db-admin-config` ConfigMap is expected in the release namespace (`coproc-admin`) with key `RDS_ADMIN_SECRET_ID` holding the ID of the RDS master credentials secret in AWS Secrets Manager.
 
 ## Usage
 

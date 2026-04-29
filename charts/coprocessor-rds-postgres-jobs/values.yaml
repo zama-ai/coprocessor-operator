@@ -29,7 +29,8 @@ volumes: []
 volumeMounts: []
 
 podAnnotations: {}
-podLabels: {}
+podLabels:
+  network/rds-client: "true"
 # Pod-level security context (e.g. fsGroup).
 podSecurityContext: {}
 # Container-level security context (e.g. runAsUser, readOnlyRootFilesystem).
