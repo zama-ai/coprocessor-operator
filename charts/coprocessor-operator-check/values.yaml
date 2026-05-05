@@ -55,6 +55,16 @@ checks:
         fi
       }
 
+      check_configmap() {
+        local name=$1 namespace=$2
+        if kubectl get configmap "$name" --namespace "$namespace" &>/dev/null; then
+          echo "  ✓ $namespace/$name"
+        else
+          echo "  ✗ $namespace/$name  <-- MISSING"
+          FAILED=$((FAILED + 1))
+        fi
+      }
+
       echo "┌─────────────────────────────────────────────────"
       echo "│ k8s-check"
       echo "├─────────────────────────────────────────────────"
@@ -72,6 +82,8 @@ checks:
       check_secret postgres-exporter-rds-credentials coproc-admin
       check_secret postgres-exporter-config monitoring
       check_secret grafana-cloud-credentials monitoring
+      check_secret coprocessor-readonly-rds-credentials coproc-admin
+      check_secret coprocessor-readonly-rds-credentials monitoring
 
       echo " -- ExternalName services --"
       check_externalname_svc coprocessor-database coproc
@@ -79,6 +91,13 @@ checks:
       echo " -- ConfigMaps --"
       check_configmap_key db-admin-config coproc-admin RDS_ADMIN_SECRET_ID
       check_configmap_key db-admin-config coproc-admin AWS_KMS_KEY_ID
+      check_configmap_key coprocessor-config coproc DATABASE_ENDPOINT
+      check_configmap_key coprocessor-config coproc S3_BUCKET_NAME
+      check_configmap_key coprocessor-tx-sender gw-blockchain AWS_KEY_ID
+      for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
+        check_configmap eth-sc-addresses "$NS"
+        check_configmap gw-sc-addresses "$NS"
+      done
 
       if [ "$FAILED" -gt 0 ]; then
         echo "  k8s-check FAILED: $FAILED check(s) — ensure Terraform has run and secrets-bootstrap.sh has been executed"
@@ -136,14 +155,20 @@ checks:
 
       CONN="host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require"
 
-      echo " -- Roles --"
-      psql "$CONN" -c "SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname IN ('coprocessor_user', 'postgres_exporter');"
+      echo " -- Roles (excluding system rds_*/pg_*) --"
+      psql "$CONN" -c "SELECT rolname, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname NOT LIKE 'rds_%' AND rolname NOT LIKE 'pg_%' ORDER BY rolname;"
 
-      echo " -- coprocessor_user schema ownership --"
-      psql "$CONN" -c "SELECT schema_name, schema_owner FROM information_schema.schemata WHERE schema_owner = 'coprocessor_user';"
+      echo " -- Role memberships (non-system) --"
+      psql "$CONN" -c "SELECT m.rolname AS role, p.rolname AS member_of FROM pg_auth_members am JOIN pg_roles m ON am.member = m.oid JOIN pg_roles p ON am.roleid = p.oid WHERE m.rolname NOT LIKE 'rds_%' AND m.rolname NOT LIKE 'pg_%' ORDER BY m.rolname, p.rolname;"
 
-      echo " -- postgres_exporter pg_monitor membership --"
-      psql "$CONN" -c "SELECT rolname FROM pg_roles WHERE pg_has_role('postgres_exporter', oid, 'member') AND rolname = 'pg_monitor';"
+      echo " -- Schema ownership (public) --"
+      psql "$CONN" -c "SELECT schema_name, schema_owner FROM information_schema.schemata WHERE schema_name = 'public';"
+
+      echo " -- Tables in public (owner) --"
+      psql "$CONN" -c "SELECT tablename, tableowner FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
+
+      echo " -- Default privileges (pg_default_acl) --"
+      psql "$CONN" -c "SELECT pg_get_userbyid(d.defaclrole) AS for_role, n.nspname AS schema, d.defaclobjtype AS objtype, d.defaclacl AS acl FROM pg_default_acl d JOIN pg_namespace n ON d.defaclnamespace = n.oid ORDER BY for_role, schema;"
 
       echo " -- ciphertexts table + ownership --"
       OWNER=$(psql "$CONN" -tAc "SELECT tableowner FROM pg_tables WHERE schemaname='public' AND tablename='ciphertexts';")

@@ -51,7 +51,9 @@ job:
       psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
         -v ON_ERROR_STOP=1 \
         -v app_password="$COPROCESSOR_USER_RDS_PASSWORD" \
-        -v exporter_password="$POSTGRES_EXPORTER_RDS_PASSWORD" <<'EOSQL'
+        -v exporter_password="$POSTGRES_EXPORTER_RDS_PASSWORD" \
+        -v readonly_password="$COPROCESSOR_READONLY_RDS_PASSWORD" \
+        -v master_user="$MASTER_USER" <<'EOSQL'
 
       -- coprocessor application user
       SELECT EXISTS (
@@ -83,6 +85,28 @@ job:
       GRANT CONNECT ON DATABASE coprocessor TO postgres_exporter;
       GRANT pg_monitor TO postgres_exporter;
 
+      -- coprocessor read-only user
+      SELECT EXISTS (
+        SELECT 1 FROM pg_roles WHERE rolname = 'coprocessor_readonly'
+      ) AS readonly_exists \gset
+
+      \if :readonly_exists
+        ALTER ROLE coprocessor_readonly WITH LOGIN PASSWORD :'readonly_password';
+      \else
+        CREATE ROLE coprocessor_readonly WITH LOGIN PASSWORD :'readonly_password';
+      \endif
+
+      GRANT CONNECT ON DATABASE coprocessor TO coprocessor_readonly;
+      GRANT USAGE ON SCHEMA public TO coprocessor_readonly;
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO coprocessor_readonly;
+
+      -- master user must be a member of coprocessor_user to ALTER its default privileges
+      GRANT coprocessor_user TO :"master_user";
+
+      -- future tables created by coprocessor_user
+      ALTER DEFAULT PRIVILEGES FOR ROLE coprocessor_user IN SCHEMA public
+        GRANT SELECT ON TABLES TO coprocessor_readonly;
+
       EOSQL
 
 env:
@@ -95,6 +119,11 @@ env:
     valueFrom:
       secretKeyRef:
         name: postgres-exporter-rds-credentials
+        key: password
+  - name: COPROCESSOR_READONLY_RDS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-readonly-rds-credentials
         key: password
 
 volumes:
