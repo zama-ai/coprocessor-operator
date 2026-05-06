@@ -16,9 +16,6 @@ commonConfig:
         key: DATABASE_ENDPOINT
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
 
-podLabels:
-  network/rds-client: "true"
-
 tfheWorker:
   enabled: true
   image:
@@ -27,24 +24,24 @@ tfheWorker:
   replicas: 1
   env:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
     - name: OTEL_SERVICE_NAME
-      value: "devnet-coprocessor-tfhe-worker"
+      value: "testnet-coprocessor-tfhe-worker"
   disabledArgs:
     - health-check-port
   extraArgs:
     - --run-bg-worker
     - --worker-polling-interval-ms=10000
-    - --work-items-batch-size=100
+    - --work-items-batch-size=16
     - --dependence-chains-per-batch=100
     - --key-cache-size=32
     - --coprocessor-fhe-threads=64
     - --tokio-threads=16
     - --pg-pool-max-connections=10
     - --log-level=INFO
-    - --service-name=devnet-coprocessor-tfhe-worker
-    - --dcid-ttl-sec=30
-    - --dcid-timeslice-sec=90
+    - --service-name=testnet-coprocessor-tfhe-worker
+    - --dcid-ttl-sec=120
+    - --dcid-timeslice-sec=240
     - --processed-dcid-ttl-sec=172800
     - --dcid-cleanup-interval-sec=3600
   ports:
@@ -53,11 +50,11 @@ tfheWorker:
     enabled: true
   resources:
     requests:
-      cpu: 4
-      memory: 8Gi
+      cpu: 88
+      memory: 128Gi
     limits:
-      cpu: 4
-      memory: 8Gi
+      cpu: 88
+      memory: 128Gi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -86,9 +83,9 @@ zkProofWorker:
   replicas: 1
   env:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
     - name: OTEL_SERVICE_NAME
-      value: "devnet-coprocessor-zkpok-worker"
+      value: "testnet-coprocessor-zkpok-worker"
   disabledArgs:
     - metrics-addr
     - health-check-port
@@ -100,18 +97,18 @@ zkProofWorker:
     - --pg-timeout=15s
     - --worker-thread-count=8
     - --log-level=INFO
-    - --service-name=devnet-coprocessor-zkproof-worker
+    - --service-name=testnet-coprocessor-zkproof-worker
   ports:
     metrics: "9100"
   serviceMonitor:
     enabled: true
   resources:
     requests:
-      cpu: 4
-      memory: 8Gi
+      cpu: 28
+      memory: 128Gi
     limits:
-      cpu: 4
-      memory: 8Gi
+      cpu: 28
+      memory: 128Gi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -147,9 +144,9 @@ snsWorker:
           key: S3_BUCKET_NAME
   env:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
     - name: OTEL_SERVICE_NAME
-      value: "devnet-coprocessor-sns-worker"
+      value: "testnet-coprocessor-sns-worker"
   disabledArgs:
     - metrics-addr
     - health-check-port
@@ -159,7 +156,7 @@ snsWorker:
     - event_ciphertext_computed
     - --pg-notify-channel
     - event_ciphertext128_computed
-    - --work-items-batch-size=1
+    - --work-items-batch-size=20
     - --pg-polling-interval=1
     - --pg-pool-connections=10
     - --pg-timeout=15s
@@ -170,21 +167,21 @@ snsWorker:
     - --s3-recheck-duration=2s
     - --s3-regular-recheck-duration=120s
     - --gc-batch-size=80
-    - --cleanup-interval=120s
+    - --cleanup-interval=1000000s
     - --liveness-threshold=70s
     - --log-level=INFO
-    - --service-name=devnet-coprocessor-sns-worker
+    - --service-name=testnet-coprocessor-sns-worker
   ports:
     metrics: "9100"
   serviceMonitor:
     enabled: true
   resources:
     requests:
-      cpu: 4
-      memory: 8Gi
+      cpu: 36
+      memory: 128Gi
     limits:
-      cpu: 4
-      memory: 8Gi
+      cpu: 36
+      memory: 128Gi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

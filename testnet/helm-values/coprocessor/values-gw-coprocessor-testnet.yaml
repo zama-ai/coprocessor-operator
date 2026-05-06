@@ -43,10 +43,7 @@ commonConfig:
           key: gateway_config.address
   tracing:
     enabled: true
-    endpoint: http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317
-
-podLabels:
-  network/rds-client: "true"
+    endpoint: http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317
 
 gwListener:
   enabled: true
@@ -57,7 +54,7 @@ gwListener:
   config:
     chainId: '11155111'
   tracing:
-    service: devnet-coprocessor-gw-listener
+    service: testnet-coprocessor-gw-listener
   disabledArgs:
   - health-check-port
   - metrics-addr
@@ -68,8 +65,7 @@ gwListener:
   - --error-sleep-max-secs=10
   - --get-logs-poll-interval=1s
   - --get-logs-block-batch-size=100
-  - --service-name=devnet-coprocessor-gw-listener
-  - --replay-from-block=1973734
+  - --service-name=testnet-coprocessor-gw-listener
   ports:
     metrics: 9100
     healthcheck: 8080
@@ -93,10 +89,10 @@ gwListener:
   resources:
     requests:
       cpu: 1
-      memory: 8Gi
+      memory: 2Gi
     limits:
       cpu: 1
-      memory: 8Gi
+      memory: 2Gi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -131,7 +127,7 @@ txSender:
         name: coprocessor-tx-sender
         key: AWS_KEY_ID
   tracing:
-    service: devnet-coprocessor-tx-sender
+    service: testnet-coprocessor-tx-sender
   disabledArgs:
   - multichain-acl-address
   - health-check-port
@@ -159,7 +155,7 @@ txSender:
   - --provider-retry-interval=4s
   - --graceful-shutdown-timeout=8s
   - --log-level=INFO
-  - --service-name=devnet-coprocessor-tx-sender
+  - --service-name=testnet-coprocessor-tx-sender
   - --metric-host-txn-latency=0.1:60.0:0.1
   - --metric-zkproof-txn-latency=0.1:60.0:0.1
   - --gauge-update-interval-secs=10

@@ -16,9 +16,6 @@ commonConfig:
         key: DATABASE_ENDPOINT
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor?sslmode=prefer"
 
-podLabels:
-  network/rds-client: "true"
-
 dbMigration:
   enabled: true
   image:
@@ -59,12 +56,12 @@ dbMigration:
               - key: karpenter.sh/nodepool
                 operator: In
                 values:
-                  - coprocessor-pool
+                  - zws-pool
   tolerations:
     - key: karpenter.sh/nodepool
       effect: NoSchedule
       operator: Equal
-      value: coprocessor-pool
+      value: zws-pool
 
 tfheWorker:
   enabled: false

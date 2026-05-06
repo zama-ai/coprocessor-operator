@@ -217,8 +217,7 @@ job:
   ttlSecondsAfterFinished: 300
 
 # Extra labels applied to the check Job's pod template (e.g. for SecurityGroupPolicy selectors).
-podLabels:
-  network/rds-client: "true"
+podLabels: {}
 
 # Pod-level security context (e.g. fsGroup, runAsGroup).
 podSecurityContext: {}

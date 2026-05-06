@@ -1,13 +1,13 @@
 hostContractConfigMap:
   enabled: true
   name: eth-sc-addresses
-  network: devnet
+  network: testnet
   addresses: {}
 
 gatewayContractConfigMap:
   enabled: true
   name: gw-sc-addresses
-  network: devnet
+  network: testnet
   addresses: {}
 
 dbMigration:

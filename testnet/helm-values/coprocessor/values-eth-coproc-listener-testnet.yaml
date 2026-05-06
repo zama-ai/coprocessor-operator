@@ -26,11 +26,11 @@ hostListenerShared:
   replicas: 1
   env:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
     - name: OTEL_SERVICE_NAME
-      value: "devnet-coprocessor-host-listener"
+      value: "testnet-coprocessor-host-listener"
   args:
-    serviceName: devnet-coprocessor-host-listener
+    serviceName: testnet-coprocessor-host-listener
   extraArgs:
     - --initial-block-time=12
     - --catchup-finalization-in-blocks=5
@@ -38,8 +38,6 @@ hostListenerShared:
     - --reorg-maximum-duration-in-blocks=50
     - --log-level=INFO
     - --dependence-cross-block
-    - --start-at-block=10319523
-    - --dependent-ops-max-per-chain=0
   ports:
     metrics: "9100"
   serviceMonitor:
@@ -99,9 +97,6 @@ snsWorker:
   enabled: false
 txSender:
   enabled: false
-
-podLabels:
-  network/rds-client: "true"
 
 podAnnotations:
   reloader.stakater.com/auto: "true"
