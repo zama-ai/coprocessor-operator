@@ -57,7 +57,8 @@ if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-user-rds-creden
 else
   # ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
   COPROCESSOR_PASS=$(openssl rand -base64 32 | tr -d '/+=')
-  EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
+  POSTGRES_EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
+  SQL_EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
 
   echo ""
   echo "  coprocessor-user-rds-credentials"
@@ -68,15 +69,26 @@ else
   done
 
   echo ""
-  echo "  postgres-exporter-rds-credentials (coproc-admin only — consumed by db-user-setup Job)"
+  echo "  postgres-exporter-rds-credentials (coproc-admin ns only — consumed by db-user-setup Job)"
   apply_secret postgres-exporter-rds-credentials coproc-admin \
     --from-literal=username="postgres_exporter" \
-    --from-literal=password="$EXPORTER_PASS"
+    --from-literal=password="$POSTGRES_EXPORTER_PASS"
 
   echo ""
-  echo "  postgres-exporter-config (monitoring — consumed by prometheus-postgres-exporter)"
+  echo "  postgres-exporter-config (monitoring ns — consumed by prometheus-postgres-exporter)"
   apply_secret postgres-exporter-config monitoring \
-    --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
+    --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${POSTGRES_EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
+
+  echo ""
+  echo "  sql-exporter-rds-credentials (coproc-admin ns only — consumed by db-user-setup Job)"
+  apply_secret sql-exporter-rds-credentials coproc-admin \
+    --from-literal=username="sql_exporter" \
+    --from-literal=password="$SQL_EXPORTER_PASS"
+
+  echo ""
+  echo "  postgres-exporter-config (monitoring ns — consumed by prometheus-postgres-exporter)"
+  apply_secret sql-exporter-config monitoring \
+    --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${SQL_EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
 fi
 
 # =============================================================================
