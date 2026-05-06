@@ -57,11 +57,14 @@ echo "[ 1/5 ] RDS user passwords"
 # ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
 gen_pass() { openssl rand -base64 32 | tr -d '/+='; }
 
+COPROCESSOR_PASS=$(gen_pass)
+POSTGRES_EXPORTER_PASS=$(gen_pass)
+SQL_EXPORTER_PASS=$(gen_pass)
+
 # coprocessor_user (fanned out to four namespaces)
 if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
-  echo "  skipping coprocessor-user-rds-credentials — already exists"
+  echo "  skipping — secret coprocessor-user-rds-credentials already exist"
 else
-  COPROCESSOR_PASS=$(gen_pass)
   echo ""
   echo "  coprocessor-user-rds-credentials"
   for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
@@ -71,36 +74,36 @@ else
   done
 fi
 
-# postgres_exporter (rds-credentials + monitoring config share the same password — gated as a unit)
+# postgres_exporter
 if [[ "$DRY_RUN" == "false" ]] && kubectl get secret postgres-exporter-rds-credentials --namespace coproc-admin &>/dev/null; then
-  echo "  skipping postgres-exporter-rds-credentials — already exists"
+  echo "  skipping — secret postgres-exporter-rds-credentials already exist"
 else
-  EXPORTER_PASS=$(gen_pass)
-
   echo ""
-  echo "  postgres-exporter-rds-credentials (coproc-admin only — consumed by db-user-setup Job)"
+  echo "  postgres-exporter-rds-credentials (coproc-admin ns only — consumed by db-user-setup Job)"
   apply_secret postgres-exporter-rds-credentials coproc-admin \
     --from-literal=username="postgres_exporter" \
-    --from-literal=password="$EXPORTER_PASS"
+    --from-literal=password="$POSTGRES_EXPORTER_PASS"
 
   echo ""
-  echo "  postgres-exporter-config (monitoring — consumed by prometheus-postgres-exporter)"
+  echo "  postgres-exporter-config (monitoring ns — consumed by prometheus-postgres-exporter)"
   apply_secret postgres-exporter-config monitoring \
-    --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
+    --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${POSTGRES_EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
 fi
 
-# coprocessor_readonly
-if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-readonly-rds-credentials --namespace coproc-admin &>/dev/null; then
-  echo "  skipping coprocessor-readonly-rds-credentials — already exists"
+# sql_exporter
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret sql-exporter-rds-credentials --namespace coproc-admin &>/dev/null; then
+  echo "  skipping — secret sql-exporter-rds-credentials already exist"
 else
-  READONLY_PASS=$(gen_pass)
   echo ""
-  echo "  coprocessor-readonly-rds-credentials (coproc-admin: db-user-setup Job; monitoring: consumer)"
-  for NS in coproc-admin monitoring; do
-    apply_secret coprocessor-readonly-rds-credentials "$NS" \
-      --from-literal=username="coprocessor_readonly" \
-      --from-literal=password="$READONLY_PASS"
-  done
+  echo "  sql-exporter-rds-credentials (coproc-admin ns only — consumed by db-user-setup Job)"
+  apply_secret sql-exporter-rds-credentials coproc-admin \
+    --from-literal=username="sql_exporter" \
+    --from-literal=password="$SQL_EXPORTER_PASS"
+
+  echo ""
+  echo "  sql-exporter-config (monitoring ns — consumed by sql-exporter)"
+  apply_secret sql-exporter-config monitoring \
+    --from-literal=DATA_SOURCE_NAME="postgresql://sql_exporter:${SQL_EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
 fi
 
 # =============================================================================
