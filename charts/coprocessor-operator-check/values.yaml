@@ -81,9 +81,9 @@ checks:
       done
       check_secret postgres-exporter-rds-credentials coproc-admin
       check_secret postgres-exporter-config monitoring
+      check_secret sql-exporter-rds-credentials coproc-admin
+      check_secret sql-exporter-config monitoring
       check_secret grafana-cloud-credentials monitoring
-      check_secret coprocessor-readonly-rds-credentials coproc-admin
-      check_secret coprocessor-readonly-rds-credentials monitoring
 
       echo " -- ExternalName services --"
       check_externalname_svc coprocessor-database coproc

@@ -42,6 +42,17 @@ affinity: {}
 # Resource requests/limits for the job container. Overridden by job.resources if set.
 resources: {}
 
+# Optional PersistentVolumeClaim created alongside the Job (e.g. for staging a DB dump).
+# Reference it from `volumes` via `persistentVolumeClaim.claimName` matching `name`.
+persistentVolumeClaim:
+  enabled: false
+  # Defaults to "<fullname>-data" if empty.
+  name: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
 job:
   enabled: false
   annotations: {}
