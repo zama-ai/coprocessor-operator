@@ -77,7 +77,7 @@ initContainers:
         aws s3 cp "$S3_DUMP_URI" /dump/ciphertexts_dir/ --recursive
     env:
       - name: S3_DUMP_URI
-        value: "" # CHANGE ME: S3 URI of the ciphertexts dump directory (e.g. s3://my-bucket/ciphertexts_dir)
+        value: "s3://copro-db-cipher-tf-test/ciphertexts_dir" # CHANGE ME: S3 URI of the ciphertexts dump directory (e.g. s3://my-bucket/ciphertexts_dir)
     volumeMounts:
       - name: dump
         mountPath: /dump

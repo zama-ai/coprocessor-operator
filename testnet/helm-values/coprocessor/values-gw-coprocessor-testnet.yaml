@@ -1,0 +1,223 @@
+commonConfig:
+  databaseUser:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: username
+  databasePassword:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: password
+  databaseEndpoint:
+    valueFrom:
+      configMapKeyRef:
+        name: coprocessor-config
+        key: DATABASE_ENDPOINT
+  databaseUrl: postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor
+  gatewayUrl:
+    valueFrom:
+      secretKeyRef:
+        name: conduit-credentials
+        key: conduit-rpc-ws-url
+  gatewayContractAddresses:
+    inputVerification:
+      valueFrom:
+        configMapKeyRef:
+          name: gw-sc-addresses
+          key: input_verification.address
+    kmsGeneration:
+      valueFrom:
+        configMapKeyRef:
+          name: gw-sc-addresses
+          key: kms_generation.address
+    ciphertextCommits:
+      valueFrom:
+        configMapKeyRef:
+          name: gw-sc-addresses
+          key: ciphertext_commits.address
+    gatewayConfig:
+      valueFrom:
+        configMapKeyRef:
+          name: gw-sc-addresses
+          key: gateway_config.address
+  tracing:
+    enabled: true
+    endpoint: http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317
+
+podLabels:
+  network/rds-client: "true"
+
+gwListener:
+  enabled: true
+  replicas: 1
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/gw-listener
+    tag: v0.12.0
+  config:
+    chainId: '11155111'
+  tracing:
+    service: devnet-coprocessor-gw-listener
+  disabledArgs:
+  - health-check-port
+  - metrics-addr
+  extraArgs:
+  - --verify-proof-req-database-channel="event_zkpok_new_work"
+  - --database-pool-size=16
+  - --error-sleep-initial-secs=1
+  - --error-sleep-max-secs=10
+  - --get-logs-poll-interval=1s
+  - --get-logs-block-batch-size=100
+  - --service-name=devnet-coprocessor-gw-listener
+  - --replay-from-block=1973734
+  ports:
+    metrics: 9100
+    healthcheck: 8080
+  probes:
+    liveness:
+      enabled: true
+      httpGet:
+        path: /liveness
+        port: healthcheck
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readiness:
+      enabled: true
+      httpGet:
+        path: /healthz
+        port: healthcheck
+      initialDelaySeconds: 5
+      periodSeconds: 10
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 8Gi
+    limits:
+      cpu: 1
+      memory: 8Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: karpenter.sh/nodepool
+            operator: In
+            values:
+            - zws-pool
+  tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+txSender:
+  enabled: true
+  replicas: 1
+  serviceAccountName: tx-sender
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tx-sender
+    tag: v0.12.0
+  wallet:
+    awsKms:
+      enabled: true
+      configmap:
+        name: coprocessor-tx-sender
+        key: AWS_KEY_ID
+  tracing:
+    service: devnet-coprocessor-tx-sender
+  disabledArgs:
+  - multichain-acl-address
+  - health-check-port
+  - metrics-addr
+  extraArgs:
+  - --database-pool-size=10
+  - --database-polling-interval-secs=1
+  - --verify-proof-resp-database-channel
+  - event_zkpok_computed
+  - --add-ciphertexts-database-channel
+  - event_ciphertexts_uploaded
+  - --verify-proof-resp-batch-limit=128
+  - --verify-proof-resp-max-retries=6
+  - --verify-proof-remove-after-max-retries
+  - --add-ciphertexts-batch-limit=10
+  - --allow-handle-batch-limit=200
+  - --allow-handle-max-retries=2147483647
+  - --add-ciphertexts-max-retries=2147483647
+  - --provider-max-retries=4294967295
+  - --error-sleep-initial-secs=1
+  - --error-sleep-max-secs=4
+  - --txn-receipt-timeout-secs=4
+  - --review-after-unlimited-retries=30
+  - --gas-limit-overprovision-percent=120
+  - --provider-retry-interval=4s
+  - --graceful-shutdown-timeout=8s
+  - --log-level=INFO
+  - --service-name=devnet-coprocessor-tx-sender
+  - --metric-host-txn-latency=0.1:60.0:0.1
+  - --metric-zkproof-txn-latency=0.1:60.0:0.1
+  - --gauge-update-interval-secs=10
+  ports:
+    metrics: 9100
+    healthcheck: 8080
+  probes:
+    liveness:
+      enabled: true
+      httpGet:
+        path: /liveness
+        port: healthcheck
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    readiness:
+      enabled: true
+      httpGet:
+        path: /healthz
+        port: healthcheck
+      initialDelaySeconds: 5
+      periodSeconds: 10
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: karpenter.sh/nodepool
+            operator: In
+            values:
+            - zws-pool
+  tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+dbMigration:
+  enabled: false
+  
+tfheWorker:
+  enabled: false
+
+zkProofWorker:
+  enabled: false
+
+snsWorker:
+  enabled: false

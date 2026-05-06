@@ -1,0 +1,215 @@
+commonConfig:
+  databaseUser:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: username
+  databasePassword:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: password
+  databaseEndpoint:
+    valueFrom:
+      configMapKeyRef:
+        name: coprocessor-config
+        key: DATABASE_ENDPOINT
+  databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
+
+podLabels:
+  network/rds-client: "true"
+
+tfheWorker:
+  enabled: true
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
+    tag: v0.12.0
+  replicas: 1
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+    - name: OTEL_SERVICE_NAME
+      value: "devnet-coprocessor-tfhe-worker"
+  disabledArgs:
+    - health-check-port
+  extraArgs:
+    - --run-bg-worker
+    - --worker-polling-interval-ms=10000
+    - --work-items-batch-size=100
+    - --dependence-chains-per-batch=100
+    - --key-cache-size=32
+    - --coprocessor-fhe-threads=64
+    - --tokio-threads=16
+    - --pg-pool-max-connections=10
+    - --log-level=INFO
+    - --service-name=devnet-coprocessor-tfhe-worker
+    - --dcid-ttl-sec=30
+    - --dcid-timeslice-sec=90
+    - --processed-dcid-ttl-sec=172800
+    - --dcid-cleanup-interval-sec=3600
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 4
+      memory: 8Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - coprocessor-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: coprocessor-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+zkProofWorker:
+  enabled: true
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/zkproof-worker
+    tag: v0.12.0
+  replicas: 1
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+    - name: OTEL_SERVICE_NAME
+      value: "devnet-coprocessor-zkpok-worker"
+  disabledArgs:
+    - metrics-addr
+    - health-check-port
+  extraArgs:
+    - --pg-listen-channel="event_zkpok_new_work"
+    - --pg-notify-channel="event_zkpok_computed"
+    - --pg-polling-interval=5
+    - --pg-pool-connections=5
+    - --pg-timeout=15s
+    - --worker-thread-count=8
+    - --log-level=INFO
+    - --service-name=devnet-coprocessor-zkproof-worker
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 4
+      memory: 8Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - coprocessor-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: coprocessor-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+snsWorker:
+  enabled: true
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
+    tag: v0.12.0
+  replicas: 1
+  serviceAccountName: sns-worker
+  config:
+    s3BucketName:
+      valueFrom:
+        configMapKeyRef:
+          name: coprocessor-config
+          key: S3_BUCKET_NAME
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://observability-zws-dev-observability-alloy.observability.svc.cluster.local:4317"
+    - name: OTEL_SERVICE_NAME
+      value: "devnet-coprocessor-sns-worker"
+  disabledArgs:
+    - metrics-addr
+    - health-check-port
+  extraArgs:
+    - --pg-listen-channels
+    - event_pbs_computations
+    - event_ciphertext_computed
+    - --pg-notify-channel
+    - event_ciphertext128_computed
+    - --work-items-batch-size=1
+    - --pg-polling-interval=1
+    - --pg-pool-connections=10
+    - --pg-timeout=15s
+    - --s3-max-concurrent-uploads=100
+    - --s3-max-retries-per-upload=100
+    - --s3-max-backoff=10s
+    - --s3-max-retries-timeout=120s
+    - --s3-recheck-duration=2s
+    - --s3-regular-recheck-duration=120s
+    - --gc-batch-size=80
+    - --cleanup-interval=120s
+    - --liveness-threshold=70s
+    - --log-level=INFO
+    - --service-name=devnet-coprocessor-sns-worker
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 4
+      memory: 8Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - coprocessor-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: coprocessor-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+dbMigration:
+  enabled: false
+
+gwListener:
+  enabled: false
+
+txSender:
+  enabled: false
