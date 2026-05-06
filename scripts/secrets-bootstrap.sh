@@ -52,14 +52,14 @@ apply_secret() {
 echo ""
 echo "[ 1/3 ] RDS user passwords"
 
-if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
-  echo "  skipping — secrets already exist"
-else
-  # ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
-  COPROCESSOR_PASS=$(openssl rand -base64 32 | tr -d '/+=')
-  POSTGRES_EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
-  SQL_EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
+# ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
+COPROCESSOR_PASS=$(openssl rand -base64 32 | tr -d '/+=')
+POSTGRES_EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
+SQL_EXPORTER_PASS=$(openssl rand -base64 32 | tr -d '/+=')
 
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret coprocessor-user-rds-credentials --namespace coproc &>/dev/null; then
+  echo "  skipping — secret coprocessor-user-rds-credentials already exist"
+else
   echo ""
   echo "  coprocessor-user-rds-credentials"
   for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
@@ -67,7 +67,11 @@ else
       --from-literal=username="coprocessor_user" \
       --from-literal=password="$COPROCESSOR_PASS"
   done
+fi
 
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret postgres-exporter-rds-credentials --namespace coproc &>/dev/null; then
+  echo "  skipping — secret postgres-exporter-rds-credentials already exist"
+else
   echo ""
   echo "  postgres-exporter-rds-credentials (coproc-admin ns only — consumed by db-user-setup Job)"
   apply_secret postgres-exporter-rds-credentials coproc-admin \
@@ -78,7 +82,11 @@ else
   echo "  postgres-exporter-config (monitoring ns — consumed by prometheus-postgres-exporter)"
   apply_secret postgres-exporter-config monitoring \
     --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${POSTGRES_EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
+fi
 
+if [[ "$DRY_RUN" == "false" ]] && kubectl get secret sql-exporter-rds-credentials --namespace coproc &>/dev/null; then
+  echo "  skipping — secret sql-exporter-rds-credentials already exist"
+else
   echo ""
   echo "  sql-exporter-rds-credentials (coproc-admin ns only — consumed by db-user-setup Job)"
   apply_secret sql-exporter-rds-credentials coproc-admin \
