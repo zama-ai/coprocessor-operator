@@ -94,7 +94,7 @@ else
     --from-literal=password="$SQL_EXPORTER_PASS"
 
   echo ""
-  echo "  postgres-exporter-config (monitoring ns — consumed by prometheus-postgres-exporter)"
+  echo "  sql-exporter-config (monitoring ns — consumed by prometheus-sql-exporter)"
   apply_secret sql-exporter-config monitoring \
     --from-literal=DATA_SOURCE_NAME="postgresql://postgres_exporter:${SQL_EXPORTER_PASS}@coprocessor-database.coproc.svc.cluster.local:5432/coprocessor?sslmode=require"
 fi
