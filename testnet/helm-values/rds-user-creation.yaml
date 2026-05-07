@@ -102,14 +102,15 @@ job:
       GRANT SELECT ON ALL TABLES IN SCHEMA public TO sql_exporter;
       GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO sql_exporter;
 
-      -- Set default privileges so future objects created by coprocessor_user are also readable by sql_exporter
-      ALTER DEFAULT PRIVILEGES FOR ROLE coprocessor_user IN SCHEMA public
+      -- Set default privileges so future objects created by coprocessor_user are also readable by sql_exporter.
+      -- On RDS, the master user must be a member of coprocessor_user (and SET ROLE to it) to alter its default privileges.
+      GRANT coprocessor_user TO CURRENT_USER;
+      SET ROLE coprocessor_user;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public
         GRANT SELECT ON TABLES TO sql_exporter;
-      ALTER DEFAULT PRIVILEGES FOR ROLE coprocessor_user IN SCHEMA public
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public
         GRANT SELECT ON SEQUENCES TO sql_exporter;
-
       EOSQL
-
 env:
   - name: COPROCESSOR_USER_RDS_PASSWORD
     valueFrom:
