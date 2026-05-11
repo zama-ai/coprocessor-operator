@@ -66,6 +66,8 @@ gwListener:
   - --get-logs-poll-interval=1s
   - --get-logs-block-batch-size=100
   - --service-name=testnet-coprocessor-gw-listener
+  - --replay-from-block=3710
+  - --replay-skip-verify-proof
   ports:
     metrics: 9100
     healthcheck: 8080
@@ -89,10 +91,10 @@ gwListener:
   resources:
     requests:
       cpu: 1
-      memory: 2Gi
+      memory: 8Gi
     limits:
       cpu: 1
-      memory: 2Gi
+      memory: 8Gi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
