@@ -9,6 +9,17 @@ image:
   repository: hub.zama.org/zama-protocol/zama.ai/postgres
   tag: "18-dev"
 
+persistentVolumeClaim:
+  enabled: true
+  name: ciphertext-restore-dump
+  storageClassName: gp3
+  accessModes:
+    - ReadWriteOnce
+  size: 100Gi
+
+podSecurityContext:
+  fsGroup: 1000
+
 job:
   enabled: true
   ttlSecondsAfterFinished: 600
@@ -61,7 +72,7 @@ initContainers:
       - name: RDS_ADMIN_SECRET_ID
         valueFrom:
           configMapKeyRef:
-            name: rds-admin-secret-id
+            name: db-admin-config
             key: "RDS_ADMIN_SECRET_ID"
     volumeMounts:
       - name: shared-creds
@@ -77,7 +88,7 @@ initContainers:
         aws s3 cp "$S3_DUMP_URI" /dump/ciphertexts_dir/ --recursive
     env:
       - name: S3_DUMP_URI
-        value: "" # CHANGE ME: S3 URI of the ciphertexts dump directory (e.g. s3://my-bucket/ciphertexts_dir)
+        value: "s3://copro-db-cipher-tf-test/ciphertexts_dir"
     volumeMounts:
       - name: dump
         mountPath: /dump
@@ -87,11 +98,27 @@ volumes:
     emptyDir:
       medium: Memory
   - name: dump
-    emptyDir:
-      sizeLimit: 15Gi
+    persistentVolumeClaim:
+      claimName: ciphertext-restore-dump
 
 volumeMounts:
   - name: shared-creds
     mountPath: /shared
   - name: dump
     mountPath: /dump
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - zws-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: zws-pool

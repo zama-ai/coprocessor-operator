@@ -1,0 +1,79 @@
+commonConfig:
+  databaseUser:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: username
+  databasePassword:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: password
+  databaseEndpoint:
+    valueFrom:
+      configMapKeyRef:
+        name: coprocessor-config
+        key: DATABASE_ENDPOINT
+  databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor?sslmode=prefer"
+
+dbMigration:
+  enabled: true
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/db-migration
+    tag: v0.12.2
+  config:
+    chainId: "11155111"
+    aclContractAddress:
+      valueFrom:
+        configMapKeyRef:
+          name: eth-sc-addresses
+          key: acl.address
+    inputVerifierAddress:
+      valueFrom:
+        configMapKeyRef:
+          name: eth-sc-addresses
+          key: input_verifier.address
+  env:
+    # TODO fetch key script should be removed from the chart
+    - name: PKS_URL
+      value: "http://example.com"
+    - name: SKS_URL
+      value: "http://example.com"
+    - name: PP_URL
+      value: "http://example.com"
+  resources:
+    requests:
+      cpu: 2
+      memory: 8Gi
+    limits:
+      cpu: 2
+      memory: 8Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+
+tfheWorker:
+  enabled: false
+
+zkProofWorker:
+  enabled: false
+
+snsWorker:
+  enabled: false
+
+gwListener:
+  enabled: false
+  
+txSender:
+  enabled: false

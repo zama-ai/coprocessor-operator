@@ -1,0 +1,105 @@
+commonConfig:
+  databaseUser:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: username
+  databasePassword:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: password
+  databaseEndpoint:
+    valueFrom:
+      configMapKeyRef:
+        name: coprocessor-config
+        key: DATABASE_ENDPOINT
+  databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
+
+dbMigration:
+  enabled: false
+
+hostListenerShared:
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
+    tag: v0.12.0
+  replicas: 1
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
+    - name: OTEL_SERVICE_NAME
+      value: "testnet-coprocessor-host-listener"
+  args:
+    serviceName: testnet-coprocessor-host-listener
+  extraArgs:
+    - --initial-block-time=12
+    - --catchup-finalization-in-blocks=5
+    - --dependence-cache-size=10000
+    - --reorg-maximum-duration-in-blocks=50
+    - --log-level=INFO
+    - --dependence-cross-block
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+chains:
+  - name: ethereum
+    wsUrlValueFrom:
+      secretKeyRef:
+        name: rpc-credentials
+        key: ethereum-rpc-ws-url
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: acl.address
+    fhevmExecutorContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: fhevm_executor.address
+    hostListener:
+      enabled: true
+      useLegacyName: true
+      extraArgs:
+        ### Catchup
+        - --start-at-block=10800101
+
+gwListener:
+  enabled: false
+tfheWorker:
+  enabled: false
+zkProofWorker:
+  enabled: false
+snsWorker:
+  enabled: false
+txSender:
+  enabled: false
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"

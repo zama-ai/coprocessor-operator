@@ -25,7 +25,7 @@ initContainers:
       - name: RDS_ADMIN_SECRET_ID
         valueFrom:
           configMapKeyRef:
-            name: rds-admin-secret-id
+            name: db-admin-config
             key: "RDS_ADMIN_SECRET_ID"
     volumeMounts:
       - name: shared-creds
@@ -52,7 +52,8 @@ job:
         -v ON_ERROR_STOP=1 \
         -v app_password="$COPROCESSOR_USER_RDS_PASSWORD" \
         -v postgres_exporter_password="$POSTGRES_EXPORTER_PASSWORD" \
-        -v sql_exporter_password="$SQL_EXPORTER_PASSWORD" <<'EOSQL'
+        -v sql_exporter_password="$SQL_EXPORTER_PASSWORD" \
+        -v master_user="$MASTER_USER" <<'EOSQL'
 
       -- coprocessor application user
       SELECT EXISTS (
@@ -103,6 +104,9 @@ job:
       GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO sql_exporter;
 
       -- Set default privileges so future objects created by coprocessor_user are also readable by sql_exporter
+      -- master user must be a member of coprocessor_user to ALTER its default privileges
+      GRANT coprocessor_user TO :"master_user";
+
       ALTER DEFAULT PRIVILEGES FOR ROLE coprocessor_user IN SCHEMA public
         GRANT SELECT ON TABLES TO sql_exporter;
       ALTER DEFAULT PRIVILEGES FOR ROLE coprocessor_user IN SCHEMA public

@@ -1,0 +1,29 @@
+hostContractConfigMap:
+  enabled: true
+  name: eth-sc-addresses
+  network: testnet
+  addresses: {}
+
+gatewayContractConfigMap:
+  enabled: true
+  name: gw-sc-addresses
+  network: testnet
+  addresses: {}
+
+dbMigration:
+  enabled: false
+
+tfheWorker:
+  enabled: false
+
+zkProofWorker:
+  enabled: false
+
+snsWorker:
+  enabled: false
+
+gwListener:
+  enabled: false
+
+txSender:
+  enabled: false
