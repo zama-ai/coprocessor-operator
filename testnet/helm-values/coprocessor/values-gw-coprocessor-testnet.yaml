@@ -55,6 +55,9 @@ gwListener:
     chainId: '11155111'
   tracing:
     service: testnet-coprocessor-gw-listener
+  env:
+  - name: AWS_REGION
+    value: eu-west-1
   disabledArgs:
   - health-check-port
   - metrics-addr
@@ -66,8 +69,11 @@ gwListener:
   - --get-logs-poll-interval=1s
   - --get-logs-block-batch-size=100
   - --service-name=testnet-coprocessor-gw-listener
-  - --replay-from-block=3710
-  - --replay-skip-verify-proof
+  ## CRS/KEY Replay
+  # - --replay-from-block=3710
+  # - --replay-skip-verify-proof
+  ## Catchup
+  - --replay-from-block=22146223
   ports:
     metrics: 9100
     healthcheck: 8080
