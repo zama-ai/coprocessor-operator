@@ -46,7 +46,9 @@ spec:
             - -c
             - |
               echo "{{ .Chart.Name }}:{{ .Chart.Version }}"
+              (
               {{- .Values.checks.k8s.script | nindent 14 }}
+              ) || echo "k8s-check exited with error"
         - name: aws-check
           image: {{ .Values.kubeUtils.image.repository }}:{{ .Values.kubeUtils.image.tag }}
           imagePullPolicy: Always
@@ -58,7 +60,9 @@ spec:
             - /bin/sh
             - -c
             - |
+              (
               {{- .Values.checks.aws.script | nindent 14 }}
+              ) || echo "aws-check exited with error"
           env:
             - name: STORAGE_HOSTNAME
               value: {{ .Values.checks.aws.storageHostname }}
@@ -73,7 +77,9 @@ spec:
             - /bin/sh
             - -c
             - |
+              (
               {{- .Values.checks.kms.script | nindent 14 }}
+              ) || echo "kms-check exited with error"
           env:
             - name: AWS_KMS_KEY_ID
               valueFrom:
@@ -94,7 +100,8 @@ spec:
               aws secretsmanager get-secret-value \
                 --secret-id "$RDS_ADMIN_SECRET_ID" \
                 --query SecretString \
-                --output text > /shared/rds-master.json
+                --output text > /shared/rds-master.json \
+                || echo "fetch-rds-secret exited with error"
           env:
             - name: RDS_ADMIN_SECRET_ID
               valueFrom:
@@ -116,7 +123,10 @@ spec:
             - /bin/sh
             - -c
             - |
+              (
               {{- .Values.checks.db.script | nindent 14 }}
+              ) || echo "db-check exited with error"
+
           volumeMounts:
             - name: shared-creds
               mountPath: /shared
