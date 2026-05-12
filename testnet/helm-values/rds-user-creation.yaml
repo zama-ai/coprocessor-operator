@@ -25,7 +25,7 @@ initContainers:
       - name: RDS_ADMIN_SECRET_ID
         valueFrom:
           configMapKeyRef:
-            name: db-admin-config
+            name: rds-admin-secret-id
             key: "RDS_ADMIN_SECRET_ID"
     volumeMounts:
       - name: shared-creds
