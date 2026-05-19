@@ -33,50 +33,8 @@ helmDefaults:
   atomic: false             # leave failed state for inspection
 
 releases:
-
   # ---------------------------------------------------------------------- #
-  # 1) ConfigMaps — fanned out to 4 consuming namespaces.                  #
-  #    Same release name everywhere; uniqueness comes from namespace.      #
-  #    No dependencies; all four sync in parallel.                         #
-  # ---------------------------------------------------------------------- #
-  - name: coproc-configmaps
-    namespace: coproc
-    chart: {{ .Values.chartRepo }}
-    version: {{ .Values.chartVersion }}
-    labels:
-      stage: configmaps
-    values:
-      - {{ .Values.valuesDir }}/values-coproc-configmaps-{{ .Environment.Name }}.yaml
-
-  - name: coproc-configmaps
-    namespace: eth-blockchain
-    chart: {{ .Values.chartRepo }}
-    version: {{ .Values.chartVersion }}
-    labels:
-      stage: configmaps
-    values:
-      - {{ .Values.valuesDir }}/values-coproc-configmaps-{{ .Environment.Name }}.yaml
-
-  - name: coproc-configmaps
-    namespace: gw-blockchain
-    chart: {{ .Values.chartRepo }}
-    version: {{ .Values.chartVersion }}
-    labels:
-      stage: configmaps
-    values:
-      - {{ .Values.valuesDir }}/values-coproc-configmaps-{{ .Environment.Name }}.yaml
-
-  - name: coproc-configmaps
-    namespace: coproc-admin
-    chart: {{ .Values.chartRepo }}
-    version: {{ .Values.chartVersion }}
-    labels:
-      stage: configmaps
-    values:
-      - {{ .Values.valuesDir }}/values-coproc-configmaps-{{ .Environment.Name }}.yaml
-
-  # ---------------------------------------------------------------------- #
-  # 2) DB migration — Job-only release.                                    #
+  # 1) DB migration — Job-only release.                                    #
   #    wait + waitForJobs blocks helm until the migration Job completes,   #
   #    so downstream workloads only proceed against a migrated schema.     #
   # ---------------------------------------------------------------------- #
@@ -90,7 +48,6 @@ releases:
     labels:
       stage: schema
     needs:
-      - coproc/coproc-configmaps
       - eth-blockchain/coproc-configmaps
       - gw-blockchain/coproc-configmaps
       - coproc-admin/coproc-configmaps
@@ -98,7 +55,7 @@ releases:
       - {{ .Values.valuesDir }}/values-coproc-infra-db-mig-{{ .Environment.Name }}.yaml
 
   # ---------------------------------------------------------------------- #
-  # 3) Workloads — gated on coproc-db-mig; sync in parallel.               #
+  # 2) Workloads — gated on coproc-db-mig; sync in parallel.               #
   # ---------------------------------------------------------------------- #
   - name: coproc-workers
     namespace: coproc

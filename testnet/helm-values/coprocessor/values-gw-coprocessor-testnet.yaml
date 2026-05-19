@@ -45,6 +45,11 @@ commonConfig:
     enabled: true
     endpoint: http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317
 
+gatewayContractConfigMap:
+  enabled: true
+  name: gw-sc-addresses
+  network: testnet
+
 gwListener:
   enabled: true
   replicas: 1
@@ -128,12 +133,12 @@ txSender:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tx-sender
     tag: v0.12.0
-  wallet: # CHANGE ME
-    # awsKms:
-    #   enabled: true
-    #   configmap:
-    #     name: coprocessor-tx-sender
-    #     key: AWS_KEY_ID
+  wallet:
+    awsKms:
+      enabled: true
+      configmap:
+        name: coprocessor-tx-sender
+        key: AWS_KEY_ID
   tracing:
     service: testnet-coprocessor-tx-sender
   disabledArgs:

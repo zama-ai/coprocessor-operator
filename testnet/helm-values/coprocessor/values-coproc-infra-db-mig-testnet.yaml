@@ -16,6 +16,11 @@ commonConfig:
         key: DATABASE_ENDPOINT
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor?sslmode=prefer"
 
+hostContractConfigMap:
+  enabled: true
+  name: eth-sc-addresses
+  network: testnet
+
 dbMigration:
   enabled: true
   image:
@@ -33,14 +38,6 @@ dbMigration:
         configMapKeyRef:
           name: eth-sc-addresses
           key: input_verifier.address
-  env:
-    # TODO fetch key script should be removed from the chart
-    - name: PKS_URL
-      value: "http://example.com"
-    - name: SKS_URL
-      value: "http://example.com"
-    - name: PP_URL
-      value: "http://example.com"
   resources:
     requests:
       cpu: 2

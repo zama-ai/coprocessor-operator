@@ -16,6 +16,11 @@ commonConfig:
         key: DATABASE_ENDPOINT
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
 
+hostContractConfigMap:
+  enabled: true
+  name: eth-sc-addresses
+  network: testnet
+
 dbMigration:
   enabled: false
 
