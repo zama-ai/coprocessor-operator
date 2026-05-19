@@ -59,6 +59,7 @@ job:
         --no-privileges \
         --data-only \
         --jobs=8 \
+        --verbose \
         /dump/copro_bootstrap_dir/
 
       echo "Ensuring sns_pk large objects are owned by coprocessor_user..."
@@ -130,7 +131,7 @@ initContainers:
     args:
       - |
         mkdir -p /dump/copro_bootstrap_dir
-        aws s3 cp "$S3_DUMP_URI" /dump/copro_bootstrap_dir/ --recursive
+        aws s3 sync --no-progress "$S3_DUMP_URI" /dump/copro_bootstrap_dir/
     env:
       - name: S3_DUMP_URI
         value: "s3://zama-testnet-coprocessor-table-dump/dump/"
