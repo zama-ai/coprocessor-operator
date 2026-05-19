@@ -73,7 +73,7 @@ gwListener:
   # - --replay-from-block=3710
   # - --replay-skip-verify-proof
   ## Catchup
-  - --replay-from-block=22146223
+  # - --replay-from-block=22146223
   ports:
     metrics: 9100
     healthcheck: 8080
@@ -128,12 +128,12 @@ txSender:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tx-sender
     tag: v0.12.0
-  wallet:
-    awsKms:
-      enabled: true
-      configmap:
-        name: coprocessor-tx-sender
-        key: AWS_KEY_ID
+  wallet: # CHANGE ME
+    # awsKms:
+    #   enabled: true
+    #   configmap:
+    #     name: coprocessor-tx-sender
+    #     key: AWS_KEY_ID
   tracing:
     service: testnet-coprocessor-tx-sender
   disabledArgs:

@@ -88,7 +88,7 @@ chains:
       useLegacyName: true
       extraArgs:
         ### Catchup
-        - --start-at-block=10800101
+        # - --start-at-block=10800101
 
 gwListener:
   enabled: false
