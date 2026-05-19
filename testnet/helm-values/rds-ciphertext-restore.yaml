@@ -9,6 +9,14 @@ image:
   repository: hub.zama.org/zama-protocol/zama.ai/postgres
   tag: "18-dev"
 
+env:
+  - name: CHAIN_ID
+    value: "11155111"
+  - name: REPLAY_START_BLOCK
+    value: "10873230"
+  - name: GATEWAY_REPLAY_START
+    value: "22472803"
+
 persistentVolumeClaim:
   enabled: true
   name: ciphertext-restore-dump
@@ -35,10 +43,13 @@ job:
       MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
       MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
 
+      : "${REPLAY_START_BLOCK:?REPLAY_START_BLOCK must be set}"
+      : "${GATEWAY_REPLAY_START:?GATEWAY_REPLAY_START must be set}"
+
       export PGPASSWORD="$MASTER_PASS"
       export PGSSLMODE=require
 
-      echo "Restoring ciphertexts table..."
+      echo "Restoring bootstrap tables..."
       pg_restore \
         --host=coprocessor-database.coproc.svc.cluster.local \
         --port=5432 \
@@ -46,13 +57,46 @@ job:
         --dbname=coprocessor \
         --no-owner \
         --no-privileges \
-        --table=ciphertexts \
+        --data-only \
         --jobs=8 \
-        /dump/ciphertexts_dir/
+        /dump/copro_bootstrap_dir/
 
-      echo "Transferring ownership to coprocessor_user..."
+      echo "Ensuring sns_pk large objects are owned by coprocessor_user..."
       psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
-        -c "ALTER TABLE ciphertexts OWNER TO coprocessor_user;"
+        <<SQL
+      DO \$\$
+      DECLARE
+          lo_oid oid;
+      BEGIN
+          FOR lo_oid IN
+              SELECT sns_pk
+              FROM public.keys
+              WHERE sns_pk IS NOT NULL
+          LOOP
+              EXECUTE format('ALTER LARGE OBJECT %s OWNER TO coprocessor_user', lo_oid);
+          END LOOP;
+      END
+      \$\$;
+      SQL
+
+      echo "Patching listener cursors for replay..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v chain_id="$CHAIN_ID" \
+        -v replay_start_block="$REPLAY_START_BLOCK" \
+        -v gateway_replay_start="$GATEWAY_REPLAY_START" \
+        <<SQL
+      INSERT INTO public.host_listener_poller_state (chain_id, last_caught_up_block)
+      VALUES (:chain_id, :replay_start_block - 1)
+      ON CONFLICT (chain_id) DO UPDATE
+      SET last_caught_up_block = EXCLUDED.last_caught_up_block,
+          updated_at = NOW();
+
+      INSERT INTO public.gw_listener_last_block (dummy_id, last_block_num, earliest_open_ct_commits_block)
+      VALUES (true, :gateway_replay_start - 1, NULL)
+      ON CONFLICT (dummy_id) DO UPDATE
+      SET last_block_num = EXCLUDED.last_block_num,
+          earliest_open_ct_commits_block = EXCLUDED.earliest_open_ct_commits_block;
+      SQL
 
       echo "Restore complete ✅"
 
@@ -85,10 +129,11 @@ initContainers:
     command: ["/bin/sh", "-c"]
     args:
       - |
-        aws s3 cp "$S3_DUMP_URI" /dump/ciphertexts_dir/ --recursive
+        mkdir -p /dump/copro_bootstrap_dir
+        aws s3 cp "$S3_DUMP_URI" /dump/copro_bootstrap_dir/ --recursive
     env:
       - name: S3_DUMP_URI
-        value: "s3://copro-db-cipher-tf-test/ciphertexts_dir"
+        value: "s3://zama-testnet-coprocessor-table-dump/dump/"
     volumeMounts:
       - name: dump
         mountPath: /dump
