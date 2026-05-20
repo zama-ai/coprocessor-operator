@@ -1,15 +1,16 @@
-# Zama Coprocessor Operator Kubernetes Deployment
+# Zama Coprocessor Operator Tooling
 
-This repo contains Helm charts and helmfile configuration to deploy a Zama Coprocessor node on EKS, including:
+This repo contains Helm charts and scripts to deploy a Zama Coprocessor node on EKS, including:
 
 * RDS PostgreSQL user provisioning
-* Coprocessor infrastructure pre-flight checks
+* EKS secret provisioning
+* Coprocessor Helm releases
+* Coprocessor infrastructure checks
 
 ## Requirements
 
 * EKS cluster following base requirements
 * [Zama Coprocessor Terraform Modules](https://github.com/zama-ai/terraform-coprocessor-modules)
-
 
 ## Charts
 

@@ -1,4 +1,4 @@
-fullnameOverride: coprocessor-ciphertext-restore
+fullnameOverride: coprocessor-db-bootstrap
 
 imagePullSecrets:
   - name: registry-credentials
@@ -19,7 +19,7 @@ env:
 
 persistentVolumeClaim:
   enabled: true
-  name: ciphertext-restore-dump
+  name: coproc-db-bootstrap-dump
   storageClassName: gp3
   accessModes:
     - ReadWriteOnce
@@ -145,7 +145,7 @@ volumes:
       medium: Memory
   - name: dump
     persistentVolumeClaim:
-      claimName: ciphertext-restore-dump
+      claimName: coproc-db-bootstrap-dump
 
 volumeMounts:
   - name: shared-creds

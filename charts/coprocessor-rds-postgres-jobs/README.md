@@ -4,7 +4,7 @@ A generic Helm chart for running one-off PostgreSQL administration Jobs against 
 
 ## Overview
 
-This chart renders a single Kubernetes Job gated by `job.enabled`. It is designed to be instantiated multiple times via helmfile — each release supplies its own values file with the specific command, image, and configuration for that operation.
+This chart renders a single Kubernetes Job gated by `job.enabled`. It is designed to be instantiated multiple times — each Helm release supplies its own values file with the specific command, image, and configuration for that operation.
 
 Current operations:
 
@@ -12,7 +12,7 @@ Current operations:
 
 Planned operations (disabled, for future releases):
 
-* **coprocessor-ciphertext-restore** — seeds ciphertext data as a one-time operation
+* **coprocessor-db-bootstrap** — restores bootstrap tables from an S3 pg_dump snapshot, reassigns ownership to `coprocessor_user`, and seeds listener replay cursors
 
 ## Prerequisites
 
