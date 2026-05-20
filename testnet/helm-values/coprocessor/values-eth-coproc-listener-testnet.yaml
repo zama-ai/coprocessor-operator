@@ -16,6 +16,11 @@ commonConfig:
         key: DATABASE_ENDPOINT
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
 
+hostContractConfigMap:
+  enabled: true
+  name: eth-sc-addresses
+  network: testnet
+
 dbMigration:
   enabled: false
 
@@ -87,8 +92,6 @@ chains:
       enabled: true
       useLegacyName: true
       extraArgs:
-        ### Catchup
-        - --start-at-block=10800101
 
 gwListener:
   enabled: false

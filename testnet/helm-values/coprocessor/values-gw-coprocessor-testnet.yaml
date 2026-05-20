@@ -45,6 +45,11 @@ commonConfig:
     enabled: true
     endpoint: http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317
 
+gatewayContractConfigMap:
+  enabled: true
+  name: gw-sc-addresses
+  network: testnet
+
 gwListener:
   enabled: true
   replicas: 1
@@ -69,11 +74,6 @@ gwListener:
   - --get-logs-poll-interval=1s
   - --get-logs-block-batch-size=100
   - --service-name=testnet-coprocessor-gw-listener
-  ## CRS/KEY Replay
-  # - --replay-from-block=3710
-  # - --replay-skip-verify-proof
-  ## Catchup
-  - --replay-from-block=22146223
   ports:
     metrics: 9100
     healthcheck: 8080
