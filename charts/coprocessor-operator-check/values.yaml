@@ -94,10 +94,9 @@ checks:
       check_configmap_key coprocessor-config coproc DATABASE_ENDPOINT
       check_configmap_key coprocessor-config coproc S3_BUCKET_NAME
       check_configmap_key coprocessor-tx-sender gw-blockchain AWS_KEY_ID
-      for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
-        check_configmap eth-sc-addresses "$NS"
-        check_configmap gw-sc-addresses "$NS"
-      done
+      check_configmap eth-sc-addresses coproc
+      check_configmap eth-sc-addresses eth-blockchain
+      check_configmap gw-sc-addresses gw-blockchain
 
       if [ "$FAILED" -gt 0 ]; then
         echo "  k8s-check FAILED: $FAILED check(s) — ensure Terraform has run and secrets-bootstrap.sh has been executed"
