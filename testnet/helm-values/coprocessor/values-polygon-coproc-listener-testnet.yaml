@@ -19,23 +19,18 @@ commonConfig:
     enabled: true
     endpoint: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
 
-hostContractConfigMap:
-  enabled: true
-  name: eth-sc-addresses
-  network: testnet
-
 hostListenerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
     tag: v0.13.0
   replicas: 1
   args:
-    serviceName: testnet-coprocessor-host-listener
+    serviceName: testnet-coprocessor-host-listener-polygon
   tracing:
-    service: testnet-coprocessor-host-listener
+    service: testnet-coprocessor-host-listener-polygon
   extraArgs:
-    - --initial-block-time=12
-    - --catchup-finalization-in-blocks=5
+    - --initial-block-time=2
+    - --catchup-finalization-in-blocks=30
     - --dependence-cache-size=10000
     - --reorg-maximum-duration-in-blocks=50
     - --log-level=INFO
@@ -72,25 +67,72 @@ hostListenerShared:
       maxSurge: 1
       maxUnavailable: 0
 
+hostListenerPollerShared:
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
+    tag: v0.13.0
+  replicas: 1
+  args:
+    serviceName: testnet-coprocessor-host-listener-poller-polygon
+  tracing:
+    service: testnet-coprocessor-host-listener-poller-polygon
+  extraArgs:
+    - --log-level=INFO
+    - --dependence-cross-block
+    - --finality-lag=15
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
 chains:
-  - name: ethereum
+  - name: polygon
     wsUrlValueFrom:
       secretKeyRef:
         name: rpc-credentials
-        key: ethereum-rpc-ws-url
+        key: polygon-rpc-ws-url
+    httpUrlValueFrom:
+      secretKeyRef:
+        name: rpc-credentials
+        key: polygon-rpc-url
     aclContractAddressValueFrom:
       configMapKeyRef:
-        name: eth-sc-addresses
+        name: polygon-sc-addresses
         key: acl.address
     fhevmExecutorContractAddressValueFrom:
       configMapKeyRef:
-        name: eth-sc-addresses
+        name: polygon-sc-addresses
         key: fhevm_executor.address
-    kmsGenerationContractAddressValueFrom:
-      configMapKeyRef:
-        name: eth-sc-addresses
-        key: kms_generation.address
+    kmsGenerationContractAddress: "0x0000000000000000000000000000000000000000"
     hostListener:
+      enabled: true
+    hostListenerPoller:
       enabled: true
       useLegacyName: true
 

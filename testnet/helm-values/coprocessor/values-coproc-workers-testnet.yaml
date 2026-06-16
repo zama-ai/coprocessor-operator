@@ -15,18 +15,33 @@ commonConfig:
         name: coprocessor-config
         key: DATABASE_ENDPOINT
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
+  tracing:
+    enabled: true
+    endpoint: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
+
+chains:
+  - name: sepolia
+    chainId: "11155111"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: acl.address
+  # polygonAmoy added once polygon-sc-addresses is deployed:
+  # - name: polygonAmoy
+  #   chainId: "80002"
+  #   aclContractAddressValueFrom:
+  #     configMapKeyRef:
+  #       name: polygon-sc-addresses
+  #       key: acl.address
 
 tfheWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
-    tag: v0.12.3
+    tag: v0.13.0
   replicas: 1
-  env:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
-    - name: OTEL_SERVICE_NAME
-      value: "testnet-coprocessor-tfhe-worker"
+  tracing:
+    service: testnet-coprocessor-tfhe-worker
   disabledArgs:
     - health-check-port
   extraArgs:
@@ -39,7 +54,6 @@ tfheWorker:
     - --tokio-threads=16
     - --pg-pool-max-connections=10
     - --log-level=INFO
-    - --service-name=testnet-coprocessor-tfhe-worker
     - --dcid-ttl-sec=120
     - --dcid-timeslice-sec=240
     - --processed-dcid-ttl-sec=172800
@@ -79,13 +93,10 @@ zkProofWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/zkproof-worker
-    tag: v0.12.3
+    tag: v0.13.0
   replicas: 1
-  env:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
-    - name: OTEL_SERVICE_NAME
-      value: "testnet-coprocessor-zkpok-worker"
+  tracing:
+    service: testnet-coprocessor-zkpok-worker
   disabledArgs:
     - metrics-addr
     - health-check-port
@@ -97,7 +108,6 @@ zkProofWorker:
     - --pg-timeout=15s
     - --worker-thread-count=8
     - --log-level=INFO
-    - --service-name=testnet-coprocessor-zkproof-worker
   ports:
     metrics: "9100"
   serviceMonitor:
@@ -133,7 +143,7 @@ snsWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
-    tag: v0.12.3
+    tag: v0.13.0
   replicas: 1
   serviceAccountName: sns-worker
   config:
@@ -142,11 +152,8 @@ snsWorker:
         configMapKeyRef:
           name: coprocessor-config
           key: S3_BUCKET_NAME
-  env:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
-    - name: OTEL_SERVICE_NAME
-      value: "testnet-coprocessor-sns-worker"
+  tracing:
+    service: testnet-coprocessor-sns-worker
   disabledArgs:
     - metrics-addr
     - health-check-port
@@ -170,7 +177,6 @@ snsWorker:
     - --cleanup-interval=1000000s
     - --liveness-threshold=70s
     - --log-level=INFO
-    - --service-name=testnet-coprocessor-sns-worker
   ports:
     metrics: "9100"
   serviceMonitor:

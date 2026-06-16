@@ -21,23 +21,26 @@ hostContractConfigMap:
   name: eth-sc-addresses
   network: testnet
 
+chains:
+  - name: sepolia
+    chainId: "11155111"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: acl.address
+  # polygonAmoy added once polygon-sc-addresses is deployed:
+  # - name: polygonAmoy
+  #   chainId: "80002"
+  #   aclContractAddressValueFrom:
+  #     configMapKeyRef:
+  #       name: polygon-sc-addresses
+  #       key: acl.address
+
 dbMigration:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/db-migration
-    tag: v0.12.2
-  config:
-    chainId: "11155111"
-    aclContractAddress:
-      valueFrom:
-        configMapKeyRef:
-          name: eth-sc-addresses
-          key: acl.address
-    inputVerifierAddress:
-      valueFrom:
-        configMapKeyRef:
-          name: eth-sc-addresses
-          key: input_verifier.address
+    tag: v0.13.0
   resources:
     requests:
       cpu: 2
