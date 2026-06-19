@@ -194,10 +194,6 @@ chains:
       configMapKeyRef:
         name: eth-sc-addresses
         key: fhevm_executor.address
-    kmsGenerationContractAddressValueFrom:
-      configMapKeyRef:
-        name: eth-sc-addresses
-        key: kms_generation.address
     hostListener:
       enabled: true
       useLegacyName: true
