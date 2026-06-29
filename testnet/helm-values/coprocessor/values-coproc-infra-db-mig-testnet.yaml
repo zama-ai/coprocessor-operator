@@ -21,6 +21,11 @@ hostContractConfigMap:
   name: eth-sc-addresses
   network: testnet
 
+polygonContractConfigMap:
+  enabled: true
+  name: polygon-sc-addresses
+  network: testnet
+
 chains:
   - name: sepolia
     chainId: "11155111"
@@ -28,13 +33,12 @@ chains:
       configMapKeyRef:
         name: eth-sc-addresses
         key: acl.address
-  # polygonAmoy added once polygon-sc-addresses is deployed:
-  # - name: polygonAmoy
-  #   chainId: "80002"
-  #   aclContractAddressValueFrom:
-  #     configMapKeyRef:
-  #       name: polygon-sc-addresses
-  #       key: acl.address
+  - name: polygonAmoy
+    chainId: "80002"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: polygon-sc-addresses
+        key: acl.address
 
 dbMigration:
   enabled: true

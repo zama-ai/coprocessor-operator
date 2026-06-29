@@ -19,6 +19,11 @@ commonConfig:
     enabled: true
     endpoint: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
 
+polygonContractConfigMap:
+  enabled: true
+  name: polygon-sc-addresses
+  network: testnet
+
 hostListenerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
