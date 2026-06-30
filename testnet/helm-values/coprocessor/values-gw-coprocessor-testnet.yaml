@@ -26,11 +26,6 @@ commonConfig:
         configMapKeyRef:
           name: gw-sc-addresses
           key: input_verification.address
-    kmsGeneration:
-      valueFrom:
-        configMapKeyRef:
-          name: gw-sc-addresses
-          key: kms_generation.address
     ciphertextCommits:
       valueFrom:
         configMapKeyRef:
