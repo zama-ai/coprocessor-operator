@@ -100,8 +100,8 @@ zkProofWorker:
     - metrics-addr
     - health-check-port
   extraArgs:
-    - --pg-listen-channel="event_zkpok_new_work"
-    - --pg-notify-channel="event_zkpok_computed"
+    - --pg-listen-channel=event_zkpok_new_work
+    - --pg-notify-channel=event_zkpok_computed
     - --pg-polling-interval=5
     - --pg-pool-connections=5
     - --pg-timeout=15s

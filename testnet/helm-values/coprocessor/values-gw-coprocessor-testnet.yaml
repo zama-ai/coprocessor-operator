@@ -57,7 +57,7 @@ gwListener:
   - health-check-port
   - metrics-addr
   extraArgs:
-  - --verify-proof-req-database-channel="event_zkpok_new_work"
+  - --verify-proof-req-database-channel=event_zkpok_new_work
   - --database-pool-size=16
   - --error-sleep-initial-secs=1
   - --error-sleep-max-secs=10
