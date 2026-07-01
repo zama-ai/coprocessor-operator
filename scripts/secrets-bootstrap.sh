@@ -128,7 +128,7 @@ else
 
   echo ""
   echo "  registry-credentials"
-  for NS in coproc coproc-admin gw-blockchain eth-blockchain kube-system monitoring karpenter; do
+  for NS in coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain kube-system monitoring karpenter; do
     if [[ "$DRY_RUN" == "true" ]]; then
       kubectl create secret docker-registry registry-credentials \
         --namespace "$NS" \
