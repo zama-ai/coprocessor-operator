@@ -4,8 +4,8 @@ set -euo pipefail
 # =============================================================================
 #  New Blockchain Bootstrap
 #
-#  Copies the coprocessor_user RDS credentials secret from the source namespace
-#  into one or more target namespaces.
+#  Copies the coprocessor_user RDS credentials and registry credentials secrets
+#  from the source namespace into one or more target namespaces.
 #
 #  The coprocessor_user password is generated once by secrets-bootstrap.sh and
 #  stored only in K8s Secrets. When a new chain namespace is added to a live
@@ -13,6 +13,7 @@ set -euo pipefail
 #  once the source secret exists), and regenerating would produce a password
 #  that no longer matches the one already set in RDS. This script copies the
 #  existing secret instead, so the value stays consistent across namespaces.
+#  The registry credentials are copied so the new namespace can pull images.
 #  Idempotent — safe to re-run.
 #
 #  Usage:
@@ -30,7 +31,7 @@ set -euo pipefail
 #    - target namespaces already created (via Terraform)
 # =============================================================================
 
-SECRET_NAME="coprocessor-user-rds-credentials"
+SECRET_NAMES=("coprocessor-user-rds-credentials" "registry-credentials")
 SOURCE_NS="coproc"
 
 DRY_RUN=false
@@ -50,29 +51,33 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   exit 1
 fi
 
-if ! kubectl get secret "$SECRET_NAME" --namespace "$SOURCE_NS" &>/dev/null; then
-  echo "error: source secret $SOURCE_NS/$SECRET_NAME not found" >&2
-  echo "       run secrets-bootstrap.sh first" >&2
-  exit 1
-fi
-
-# Pull the source secret and strip cluster-managed metadata so it can be
-# re-created in another namespace.
-MANIFEST=$(kubectl get secret "$SECRET_NAME" --namespace "$SOURCE_NS" -o json \
-  | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid,
-            .metadata.creationTimestamp, .metadata.ownerReferences,
-            .metadata.managedFields, .status,
-            .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration")')
-
-echo ""
-echo "Fanning out $SECRET_NAME from $SOURCE_NS to: ${TARGETS[*]}"
-for NS in "${TARGETS[@]}"; do
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "$MANIFEST" | jq --arg ns "$NS" '.metadata.namespace = $ns'
-  else
-    echo "$MANIFEST" | kubectl apply --namespace "$NS" -f - > /dev/null
-    echo "    ✓ $NS/$SECRET_NAME"
+for SECRET_NAME in "${SECRET_NAMES[@]}"; do
+  if ! kubectl get secret "$SECRET_NAME" --namespace "$SOURCE_NS" &>/dev/null; then
+    echo "error: source secret $SOURCE_NS/$SECRET_NAME not found" >&2
+    echo "       run secrets-bootstrap.sh first" >&2
+    exit 1
   fi
+done
+
+for SECRET_NAME in "${SECRET_NAMES[@]}"; do
+  # Pull the source secret and strip cluster-managed metadata so it can be
+  # re-created in another namespace.
+  MANIFEST=$(kubectl get secret "$SECRET_NAME" --namespace "$SOURCE_NS" -o json \
+    | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid,
+              .metadata.creationTimestamp, .metadata.ownerReferences,
+              .metadata.managedFields, .status,
+              .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration")')
+
+  echo ""
+  echo "Fanning out $SECRET_NAME from $SOURCE_NS to: ${TARGETS[*]}"
+  for NS in "${TARGETS[@]}"; do
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "$MANIFEST" | jq --arg ns "$NS" '.metadata.namespace = $ns'
+    else
+      echo "$MANIFEST" | kubectl apply --namespace "$NS" -f - > /dev/null
+      echo "    ✓ $NS/$SECRET_NAME"
+    fi
+  done
 done
 
 echo ""
