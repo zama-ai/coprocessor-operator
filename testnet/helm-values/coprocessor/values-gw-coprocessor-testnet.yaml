@@ -26,11 +26,6 @@ commonConfig:
         configMapKeyRef:
           name: gw-sc-addresses
           key: input_verification.address
-    kmsGeneration:
-      valueFrom:
-        configMapKeyRef:
-          name: gw-sc-addresses
-          key: kms_generation.address
     ciphertextCommits:
       valueFrom:
         configMapKeyRef:
@@ -55,25 +50,20 @@ gwListener:
   replicas: 1
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/gw-listener
-    tag: v0.12.0
-  config:
-    chainId: '11155111'
+    tag: v0.13.0
   tracing:
     service: testnet-coprocessor-gw-listener
-  env:
-  - name: AWS_REGION
-    value: eu-west-1
   disabledArgs:
   - health-check-port
   - metrics-addr
   extraArgs:
-  - --verify-proof-req-database-channel="event_zkpok_new_work"
+  - --verify-proof-req-database-channel=event_zkpok_new_work
   - --database-pool-size=16
   - --error-sleep-initial-secs=1
   - --error-sleep-max-secs=10
   - --get-logs-poll-interval=1s
   - --get-logs-block-batch-size=100
-  - --service-name=testnet-coprocessor-gw-listener
+  - --drift-auto-revert-enabled
   ports:
     metrics: 9100
     healthcheck: 8080
@@ -127,7 +117,7 @@ txSender:
   serviceAccountName: tx-sender
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tx-sender
-    tag: v0.12.0
+    tag: v0.13.0
   wallet:
     awsKms:
       enabled: true
@@ -151,8 +141,6 @@ txSender:
   - --verify-proof-resp-max-retries=6
   - --verify-proof-remove-after-max-retries
   - --add-ciphertexts-batch-limit=10
-  - --allow-handle-batch-limit=200
-  - --allow-handle-max-retries=2147483647
   - --add-ciphertexts-max-retries=2147483647
   - --provider-max-retries=4294967295
   - --error-sleep-initial-secs=1
@@ -163,7 +151,6 @@ txSender:
   - --provider-retry-interval=4s
   - --graceful-shutdown-timeout=8s
   - --log-level=INFO
-  - --service-name=testnet-coprocessor-tx-sender
   - --metric-host-txn-latency=0.1:60.0:0.1
   - --metric-zkproof-txn-latency=0.1:60.0:0.1
   - --gauge-update-interval-secs=10
