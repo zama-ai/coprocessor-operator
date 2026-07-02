@@ -1,0 +1,182 @@
+# NOTE: This job is meant to be run on a live Zama cluster (e.g. testnet,
+# mainnet), where the database-credentials secret and network access to the
+# snapshot-restore RDS exist. Point DATABASE_ENDPOINT at a snapshot-restore
+# copy of the coprocessor DB — never at the live database itself.
+
+fullnameOverride: coprocessor-db-dump
+
+imagePullSecrets:
+  - name: registry-credentials
+
+image:
+  repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+  tag: "2.30-dev"
+
+persistentVolumeClaim:
+  enabled: true
+  name: coproc-db-dump-scratch
+  storageClassName: gp3
+  accessModes:
+    - ReadWriteOnce
+  size: 200Gi
+
+podSecurityContext:
+  fsGroup: 1000
+
+initContainers:
+  - name: pg-dump
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/postgres
+      tag: "18-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        set -euo pipefail
+
+        export PGSSLMODE=require
+        DB_HOST="${DATABASE_ENDPOINT%:*}"
+
+        echo "Running pre-dump cleanup on $DB_HOST..."
+        psql "host=$DB_HOST port=5432 user=$DATABASE_USERNAME dbname=coprocessor sslmode=require" \
+          -v ON_ERROR_STOP=1 <<'EOSQL'
+
+        -- 1. Create replacement index first (CONCURRENTLY cannot run in a transaction)
+        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ciphertexts_created_at_v2
+        ON public.ciphertexts (created_at);
+
+        -- 2. Drop old indexes
+        DROP INDEX CONCURRENTLY IF EXISTS public.idx_ciphertexts_created_at;
+        DROP INDEX CONCURRENTLY IF EXISTS public.idx_ciphertexts_ciphertext128_null;
+
+        -- 3. Drop column
+        BEGIN;
+        SET LOCAL lock_timeout = '5s';
+        ALTER TABLE public.ciphertexts DROP COLUMN IF EXISTS ciphertext128;
+        COMMIT;
+
+        -- 4. Rename replacement index to old name
+        ALTER INDEX IF EXISTS public.idx_ciphertexts_created_at_v2
+        RENAME TO idx_ciphertexts_created_at;
+
+        EOSQL
+
+        echo ""
+        echo "Block heights — record these in rds-coprocessor-db-bootstrap.yaml"
+        echo "(REPLAY_START_BLOCK / GATEWAY_REPLAY_START):"
+        psql "host=$DB_HOST port=5432 user=$DATABASE_USERNAME dbname=coprocessor sslmode=require" \
+          -v ON_ERROR_STOP=1 <<'EOSQL'
+
+        SELECT
+          (
+            SELECT MAX(block_number)
+            FROM host_chain_blocks_valid
+            WHERE chain_id = 11155111
+          ) AS host_chain_blocks_valid_height,
+          (
+            SELECT last_block_num
+            FROM gw_listener_last_block
+            WHERE dummy_id = true
+          ) AS gw_listener_last_block_height;
+
+        EOSQL
+
+        echo "Dumping tables to /dump/copro_bootstrap_dir..."
+        rm -rf /dump/copro_bootstrap_dir
+        pg_dump \
+          --host="$DB_HOST" \
+          --port=5432 \
+          --username="$DATABASE_USERNAME" \
+          --dbname=coprocessor \
+          --format=directory \
+          --jobs=8 \
+          --compress=0 \
+          --data-only \
+          --blobs \
+          --table=public.ciphertexts \
+          --table=public.keys \
+          --table=public.crs \
+          --file=/dump/copro_bootstrap_dir
+
+        echo "Dump complete ✅"
+    env:
+      - name: DATABASE_ENDPOINT
+        value: "<update-me>" # Only run a snapshot restore db
+      - name: DATABASE_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: database-credentials
+            key: username
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: database-credentials
+            key: password
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    volumeMounts:
+      - name: dump
+        mountPath: /dump
+
+job:
+  enabled: true
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  restartPolicy: Never
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - |
+      set -euo pipefail
+
+      echo "Uploading dump to $S3_DUMP_URI..."
+
+      aws s3 cp --no-progress /dump/copro_bootstrap_dir "$S3_DUMP_URI" --recursive
+
+      echo "Upload complete ✅"
+
+env:
+  - name: S3_DUMP_URI
+    value: "<update-me>"
+  - name: AWS_DEFAULT_REGION
+    value: "eu-west-1"
+  - name: AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: s3-dump-credentials
+        key: AWS_ACCESS_KEY_ID
+  - name: AWS_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: s3-dump-credentials
+        key: AWS_SECRET_ACCESS_KEY
+
+volumes:
+  - name: dump
+    persistentVolumeClaim:
+      claimName: coproc-db-dump-scratch
+
+volumeMounts:
+  - name: dump
+    mountPath: /dump
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - coprocessor-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: coprocessor-pool

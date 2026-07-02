@@ -1,0 +1,77 @@
+fullnameOverride: coprocessor-db-reset
+
+imagePullSecrets:
+  - name: registry-credentials
+
+serviceAccountName: db-admin
+
+image:
+  repository: hub.zama.org/zama-protocol/zama.ai/postgres
+  tag: "18-dev"
+
+initContainers:
+  - name: fetch-rds-secret
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        aws secretsmanager get-secret-value \
+          --secret-id "$RDS_ADMIN_SECRET_ID" \
+          --query SecretString \
+          --output text > /shared/rds-master.json
+    env:
+      - name: RDS_ADMIN_SECRET_ID
+        valueFrom:
+          configMapKeyRef:
+            name: db-admin-config
+            key: "RDS_ADMIN_SECRET_ID"
+    volumeMounts:
+      - name: shared-creds
+        mountPath: /shared
+
+job:
+  enabled: true
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  restartPolicy: Never
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - |
+      set -euo pipefail
+
+      MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
+      MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
+
+      export PGPASSWORD="$MASTER_PASS"
+
+      echo "Resetting coprocessor database..."
+      echo "This removes all large objects and recreates the public schema."
+      echo ""
+      echo "You must rerun user-creation, dbMigration, and bootstrap after this job!"
+
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v ON_ERROR_STOP=1 <<'EOSQL'
+
+      -- Remove all large objects in the database.
+      SELECT lo_unlink(oid) FROM pg_largeobject_metadata;
+
+      -- Drop and recreate the application schema.
+      DROP SCHEMA IF EXISTS public CASCADE;
+      CREATE SCHEMA public;
+
+      EOSQL
+
+      echo "Reset complete ✅"
+
+volumes:
+  - name: shared-creds
+    emptyDir:
+      medium: Memory
+
+volumeMounts:
+  - name: shared-creds
+    mountPath: /shared

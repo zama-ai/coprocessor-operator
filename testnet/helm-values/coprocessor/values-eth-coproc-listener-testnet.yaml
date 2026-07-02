@@ -75,13 +75,8 @@ hostListenerShared:
 hostListenerPollerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.12.0
+    tag: v0.13.0
   replicas: 1
-  env:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
-    - name: OTEL_SERVICE_NAME
-      value: "testnet-coprocessor-host-listener-poller"
   args:
     serviceName: testnet-coprocessor-host-listener-poller
   extraArgs:
@@ -122,13 +117,8 @@ hostListenerPollerShared:
 hostListenerCatchupOnlyShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.12.0
+    tag: v0.13.0
   replicas: 1
-  env:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
-    - name: OTEL_SERVICE_NAME
-      value: "testnet-coprocessor-host-listener-catchup-only"
   args:
     serviceName: testnet-coprocessor-host-listener-catchup-only
   extraArgs:
