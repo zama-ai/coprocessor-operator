@@ -13,9 +13,9 @@ env:
   - name: CHAIN_ID
     value: "11155111"
   - name: REPLAY_START_BLOCK
-    value: "10873230"
+    value: "11182237"
   - name: GATEWAY_REPLAY_START
-    value: "22472803"
+    value: "24320708"
 
 persistentVolumeClaim:
   enabled: true
@@ -23,7 +23,7 @@ persistentVolumeClaim:
   storageClassName: gp3
   accessModes:
     - ReadWriteOnce
-  size: 100Gi
+  size: 200Gi
 
 podSecurityContext:
   fsGroup: 1000
@@ -48,6 +48,13 @@ job:
 
       export PGPASSWORD="$MASTER_PASS"
       export PGSSLMODE=require
+
+      echo "Preparing database for restore (truncating target tables, dropping large objects)..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v ON_ERROR_STOP=1 <<SQL
+      TRUNCATE public.ciphertexts, public.keys, public.crs CASCADE;
+      SELECT lo_unlink(oid) FROM pg_largeobject_metadata;
+      SQL
 
       echo "Restoring bootstrap tables..."
       pg_restore \
@@ -134,7 +141,7 @@ initContainers:
         aws s3 sync --no-progress "$S3_DUMP_URI" /dump/copro_bootstrap_dir/
     env:
       - name: S3_DUMP_URI
-        value: "s3://zama-testnet-coprocessor-table-dump/dump/"
+        value: "s3://zama-testnet-coprocessor-table-dump/v2/"
     volumeMounts:
       - name: dump
         mountPath: /dump
