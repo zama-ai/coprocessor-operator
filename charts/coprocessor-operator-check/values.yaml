@@ -70,15 +70,16 @@ checks:
       echo "├─────────────────────────────────────────────────"
 
       echo " -- Namespaces --"
-      for NS in coproc coproc-admin gw-blockchain eth-blockchain monitoring; do
+      for NS in coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain monitoring; do
         check_ns "$NS"
       done
 
       echo " -- Secrets --"
-      for NS in coproc coproc-admin gw-blockchain eth-blockchain; do
+      for NS in coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain; do
         check_secret coprocessor-user-rds-credentials "$NS"
         check_secret registry-credentials "$NS"
       done
+      check_secret rpc-credentials polygon-blockchain
       check_secret postgres-exporter-rds-credentials coproc-admin
       check_secret postgres-exporter-config monitoring
       check_secret sql-exporter-rds-credentials coproc-admin
@@ -93,6 +94,8 @@ checks:
       check_configmap_key db-admin-config coproc-admin AWS_KMS_KEY_ID
       check_configmap_key coprocessor-config coproc DATABASE_ENDPOINT
       check_configmap_key coprocessor-config coproc S3_BUCKET_NAME
+      check_configmap_key coprocessor-config polygon-blockchain DATABASE_ENDPOINT
+      check_configmap_key coprocessor-config polygon-blockchain S3_BUCKET_NAME
       check_configmap_key coprocessor-tx-sender gw-blockchain AWS_KEY_ID
       check_configmap eth-sc-addresses coproc
       check_configmap eth-sc-addresses eth-blockchain
