@@ -17,7 +17,7 @@ commonConfig:
   databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
   tracing:
     enabled: true
-    endpoint: "http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317"
+    endpoint: "http://k8s-monitoring-alloy-receiver.monitoring.svc.cluster.local:4317"
 
 polygonContractConfigMap:
   enabled: true
