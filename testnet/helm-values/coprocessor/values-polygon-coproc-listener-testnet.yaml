@@ -133,7 +133,8 @@ hostListenerCatchupOnlyShared:
     - --log-level=INFO
     - --dependence-cross-block
     - --only-catchup-loop
-    - --start-at-block=41047500
+    # Head was 41,880,782 at 2026-07-10; -840000 reaches back past target block 41,047,500
+    - --start-at-block=-840000
     - --end-at-block=-15
     - --catchup-loop-sleep-secs=60
   ports:
