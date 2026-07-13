@@ -1,0 +1,112 @@
+# Seeds public.host_listener_poller_state for Polygon Amoy (chain_id 80002) so the
+# host-listener poller resumes from REPLAY_START_BLOCK instead of walking up from
+# its stale cursor (~2.8M, roughly 5 months behind head at ~3.85 blocks/s).
+#
+# The poller anchors on this row at startup and rewrites it every iteration, so
+# ordering matters:
+#   1. Scale the polygon host-listener-poller deployment to 0.
+#   2. Run this job.
+#   3. Scale the poller back up — it will anchor at REPLAY_START_BLOCK.
+#
+# REPLAY_START_BLOCK 41047500 is ~10k blocks before the polygon WS listener's first
+# processed block (41,057,502; deployed 2026-06-30), so no events are skipped.
+
+fullnameOverride: coprocessor-polygon-poller-cursor-patch
+
+imagePullSecrets:
+  - name: registry-credentials
+
+serviceAccountName: db-admin
+
+image:
+  repository: hub.zama.org/zama-protocol/zama.ai/postgres
+  tag: "18-dev"
+
+env:
+  - name: CHAIN_ID
+    value: "80002"
+  - name: REPLAY_START_BLOCK
+    value: "41047500"
+
+job:
+  enabled: true
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  restartPolicy: Never
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - |
+      set -euo pipefail
+
+      MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
+      MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
+
+      : "${CHAIN_ID:?CHAIN_ID must be set}"
+      : "${REPLAY_START_BLOCK:?REPLAY_START_BLOCK must be set}"
+
+      export PGPASSWORD="$MASTER_PASS"
+      export PGSSLMODE=require
+
+      echo "Patching poller cursor for chain $CHAIN_ID to start at block $REPLAY_START_BLOCK..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v ON_ERROR_STOP=1 \
+        -v chain_id="$CHAIN_ID" \
+        -v replay_start_block="$REPLAY_START_BLOCK" \
+        <<SQL
+      INSERT INTO public.host_listener_poller_state (chain_id, last_caught_up_block)
+      VALUES (:chain_id, :replay_start_block - 1)
+      ON CONFLICT (chain_id) DO UPDATE
+      SET last_caught_up_block = EXCLUDED.last_caught_up_block,
+          updated_at = NOW();
+      SQL
+
+      echo "Poller cursor patch complete ✅"
+
+initContainers:
+  - name: fetch-rds-secret
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        aws secretsmanager get-secret-value \
+          --secret-id "$RDS_ADMIN_SECRET_ID" \
+          --query SecretString \
+          --output text > /shared/rds-master.json
+    env:
+      - name: RDS_ADMIN_SECRET_ID
+        valueFrom:
+          configMapKeyRef:
+            name: db-admin-config
+            key: "RDS_ADMIN_SECRET_ID"
+    volumeMounts:
+      - name: shared-creds
+        mountPath: /shared
+
+volumes:
+  - name: shared-creds
+    emptyDir:
+      medium: Memory
+
+volumeMounts:
+  - name: shared-creds
+    mountPath: /shared
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - zws-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: zws-pool
