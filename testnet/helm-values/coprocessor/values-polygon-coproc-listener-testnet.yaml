@@ -35,12 +35,13 @@ hostListenerShared:
     service: testnet-coprocessor-host-listener-polygon
   extraArgs:
     - --initial-block-time=2
-    - --catchup-finalization-in-blocks=30
+    - --catchup-finalization-in-blocks=4
     - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=50
+    - --reorg-maximum-duration-in-blocks=4
     - --log-level=INFO
     - --dependence-cross-block
     - --dependent-ops-max-per-chain=0
+    - --catchup-paging=1000
   ports:
     metrics: "9100"
   serviceMonitor:
@@ -84,7 +85,9 @@ hostListenerPollerShared:
   extraArgs:
     - --log-level=INFO
     - --dependence-cross-block
-    - --finality-lag=15
+    - --finality-lag=4
+    - --poll-interval-ms=1500
+    - --batch-size=1000
   ports:
     metrics: "9100"
   serviceMonitor:
@@ -128,16 +131,19 @@ hostListenerCatchupOnlyShared:
   extraArgs:
     - --initial-block-time=2
     - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=50
-    - --catchup-finalization-in-blocks=30
+    - --reorg-maximum-duration-in-blocks=4
+    - --catchup-finalization-in-blocks=4
+    - --catchup-paging=1000
     - --log-level=INFO
     - --dependence-cross-block
-    - --only-catchup-loop
-    # Head was 42,126,243 at 2026-07-13; -1150000 reaches back past target block 41,047,500
-    # (~70k-block buffer, so the offset stays valid for ~1.5 days of head growth at ~0.5 blocks/s)
-    - --start-at-block=-1150000
-    - --end-at-block=-15
-    - --catchup-loop-sleep-secs=60
+    # Normal mode (no --only-catchup-loop/--end-at-block): one deep catchup pass from
+    # the given block to head, then continues as a live listener.
+    # Static height, ~1k below the first observed protocol events on Amoy
+    # (blocks 40,997,462-40,997,552; catchup scans of 2026-07-13/14 found no events
+    # between 40,902,062 and 40,997,461). Deploy-date independent: valid today, in a
+    # week, or after any pod restart. Absolute values work in normal mode; only
+    # --only-catchup-loop rejects them (the cause of the earlier "format" failure).
+    - --start-at-block=40996500
   ports:
     metrics: "9100"
     healthcheck: "8080"
@@ -195,7 +201,7 @@ chains:
       enabled: true
       useLegacyName: true
     hostListenerCatchupOnly:
-      enabled: false
+      enabled: true
 
 dbMigration:
   enabled: false
