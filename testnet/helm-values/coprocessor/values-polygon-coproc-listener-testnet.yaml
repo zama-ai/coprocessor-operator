@@ -35,12 +35,13 @@ hostListenerShared:
     service: testnet-coprocessor-host-listener-polygon
   extraArgs:
     - --initial-block-time=2
-    - --catchup-finalization-in-blocks=30
+    - --catchup-finalization-in-blocks=4
     - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=50
+    - --reorg-maximum-duration-in-blocks=4
     - --log-level=INFO
     - --dependence-cross-block
     - --dependent-ops-max-per-chain=0
+    - --catchup-paging=1000
   ports:
     metrics: "9100"
   serviceMonitor:
@@ -84,9 +85,61 @@ hostListenerPollerShared:
   extraArgs:
     - --log-level=INFO
     - --dependence-cross-block
-    - --finality-lag=15
+    - --finality-lag=4
+    - --poll-interval-ms=1500
+    - --batch-size=1000
   ports:
     metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+hostListenerCatchupOnlyShared:
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
+    tag: v0.13.0
+  replicas: 1
+  args:
+    serviceName: testnet-coprocessor-host-listener-catchup-only-polygon
+  tracing:
+    service: testnet-coprocessor-host-listener-catchup-only-polygon
+  extraArgs:
+    - --initial-block-time=2
+    - --dependence-cache-size=10000
+    - --reorg-maximum-duration-in-blocks=4
+    - --catchup-finalization-in-blocks=4
+    - --catchup-paging=1000
+    - --log-level=INFO
+    - --dependence-cross-block
+    - --start-at-block=40996500
+  ports:
+    metrics: "9100"
+    healthcheck: "8080"
   serviceMonitor:
     enabled: true
   resources:
@@ -140,6 +193,8 @@ chains:
     hostListenerPoller:
       enabled: true
       useLegacyName: true
+    hostListenerCatchupOnly:
+      enabled: true
 
 dbMigration:
   enabled: false

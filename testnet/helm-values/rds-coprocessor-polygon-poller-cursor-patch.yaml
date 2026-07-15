@@ -8,8 +8,10 @@
 #   2. Run this job.
 #   3. Scale the poller back up — it will anchor at REPLAY_START_BLOCK.
 #
-# REPLAY_START_BLOCK 41047500 is ~10k blocks before the polygon WS listener's first
-# processed block (41,057,502; deployed 2026-06-30), so no events are skipped.
+# REPLAY_START_BLOCK 40996500 is ~1k blocks before the first observed protocol events
+# on Amoy (blocks 40,997,462-40,997,552 on the configured ACL/executor contracts, per
+# catchup listener scans of 2026-07-13/14, which found no events between 40,902,062
+# and 40,997,461), so no events are skipped.
 
 fullnameOverride: coprocessor-polygon-poller-cursor-patch
 
@@ -26,7 +28,7 @@ env:
   - name: CHAIN_ID
     value: "80002"
   - name: REPLAY_START_BLOCK
-    value: "41047500"
+    value: "40996500"
 
 job:
   enabled: true
