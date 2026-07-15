@@ -38,7 +38,7 @@ commonConfig:
           key: gateway_config.address
   tracing:
     enabled: true
-    endpoint: http://observability-zws-testnet-observability-alloy.observability.svc.cluster.local:4317
+    endpoint: http://k8s-monitoring-alloy-receiver.monitoring.svc.cluster.local:4317
 
 gatewayContractConfigMap:
   enabled: true
