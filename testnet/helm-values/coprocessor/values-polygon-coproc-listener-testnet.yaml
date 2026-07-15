@@ -136,13 +136,6 @@ hostListenerCatchupOnlyShared:
     - --catchup-paging=1000
     - --log-level=INFO
     - --dependence-cross-block
-    # Normal mode (no --only-catchup-loop/--end-at-block): one deep catchup pass from
-    # the given block to head, then continues as a live listener.
-    # Static height, ~1k below the first observed protocol events on Amoy
-    # (blocks 40,997,462-40,997,552; catchup scans of 2026-07-13/14 found no events
-    # between 40,902,062 and 40,997,461). Deploy-date independent: valid today, in a
-    # week, or after any pod restart. Absolute values work in normal mode; only
-    # --only-catchup-loop rejects them (the cause of the earlier "format" failure).
     - --start-at-block=40996500
   ports:
     metrics: "9100"
