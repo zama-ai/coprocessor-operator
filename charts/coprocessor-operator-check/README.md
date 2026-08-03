@@ -38,7 +38,7 @@ kubectl logs -n coproc-admin -l app=coprocessor-operator-check --all-containers 
 |-----------|-------------|
 | `checks.aws.storageHostname` | Cloudflare custom hostname fronting the coprocessor S3 bucket |
 
-Must be set in your environment values file (e.g. `testnet/helm-values/coprocessor-operator-check.yaml`).
+Must be set in your values file (e.g. `helm-values/utils/coprocessor-operator-check.yaml`).
 
 
 ### Key Parameters
