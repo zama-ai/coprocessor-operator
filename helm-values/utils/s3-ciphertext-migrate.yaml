@@ -1,0 +1,118 @@
+# One-off bulk copy of the ciphertext corpus from a Zama-owned source bucket
+# into the partner's coprocessor bucket. 
+#
+# Before running:
+#   1. Set SRC_BUCKET
+
+fullnameOverride: s3-ciphertext-migrate
+
+namespace: coproc-admin
+
+imagePullSecrets:
+  - name: registry-credentials
+
+image:
+  repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+  tag: "2.30-dev"
+
+serviceAccountName: s3-migrate
+
+extraObjects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: s3-ciphertext-migrate-awsconfig
+      namespace: '{{ include "coprocessor-rds-postgres-jobs.namespace" . }}'
+    data:
+      config: |
+        [default]
+        s3 =
+          max_concurrent_requests = 200
+          max_queue_size = 10000
+
+podAnnotations:
+  karpenter.sh/do-not-disrupt: "true"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+job:
+  enabled: true
+  backoffLimit: 2
+  restartPolicy: Never
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - |
+      set -eu
+
+      aws sts get-caller-identity
+
+      # Reports what the CLI resolved, not just that the ConfigMap mounted.
+      echo "max_concurrent_requests=$(aws configure get s3.max_concurrent_requests)"
+      echo "max_queue_size=$(aws configure get s3.max_queue_size)"
+
+      aws s3 sync "s3://$SRC_BUCKET" "s3://$DST_BUCKET" \
+        --source-region "$SRC_REGION" \
+        --only-show-errors
+
+      echo "Sync complete"
+
+env:
+  - name: SRC_BUCKET
+    value: "" # CHANGE ME
+  - name: SRC_REGION
+    value: "eu-west-1"
+  - name: DST_BUCKET
+    valueFrom:
+      configMapKeyRef:
+        name: db-admin-config
+        key: S3_BUCKET_NAME
+  - name: AWS_CONFIG_FILE
+    value: /aws-config/config
+  # The CLI creates ~/.aws on startup, and the default home is on the
+  # read-only root filesystem.
+  - name: HOME
+    value: /tmp
+
+volumes:
+  - name: aws-config
+    configMap:
+      name: s3-ciphertext-migrate-awsconfig
+  - name: tmp
+    emptyDir: {}
+
+volumeMounts:
+  - name: aws-config
+    mountPath: /aws-config
+    readOnly: true
+  - name: tmp
+    mountPath: /tmp
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+  limits:
+    cpu: "3.5"
+    memory: 12Gi
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - zws-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: zws-pool

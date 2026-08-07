@@ -42,6 +42,13 @@ affinity: {}
 # Resource requests/limits for the job container. Overridden by job.resources if set.
 resources: {}
 
+# Arbitrary extra manifests rendered alongside the Job, passed through verbatim.
+# Each entry is run through `tpl`, so release context may be referenced.
+# Use for small supporting objects that do not warrant dedicated values — e.g. a
+# ConfigMap carrying an AWS CLI config file. Reference them from `volumes` as
+# usual; Helm creates ConfigMaps before the Job.
+extraObjects: []
+
 # Optional PersistentVolumeClaim created alongside the Job (e.g. for staging a DB dump).
 # Reference it from `volumes` via `persistentVolumeClaim.claimName` matching `name`.
 persistentVolumeClaim:
