@@ -34,9 +34,7 @@ job:
     - |
       set -eu
 
-      # A single sync lists and externally sorts each bucket once. Splitting
-      # flat hash keys into multiple sync commands is slower because every
-      # command still lists and sorts the entire destination bucket.
+      # A single sync lists and externally sorts each bucket once. 
       # --size-only avoids one HEAD per object while still recopying objects
       # whose sizes differ. The external-sort files live on the scratch PVC.
       /s5cmd --log error --stat --numworkers "$S5CMD_WORKERS" \
