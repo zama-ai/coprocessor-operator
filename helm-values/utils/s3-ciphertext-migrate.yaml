@@ -8,14 +8,24 @@ fullnameOverride: s3-ciphertext-migrate
 
 namespace: coproc-admin
 
+imagePullSecrets:
+  - name: registry-credentials
+
 image:
-  repository: peakcom/s5cmd
+  repository: hub.zama.org/zama-protocol/zama-ai/security-hub/infra/s5cmd
   tag: "v2.3.0"
 
 serviceAccountName: s3-migrate
 
 podAnnotations:
   karpenter.sh/do-not-disrupt: "true"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10002
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
 
 securityContext:
   allowPrivilegeEscalation: false
@@ -27,20 +37,19 @@ job:
   enabled: true
   backoffLimit: 2
   restartPolicy: Never
-  command:
-    - /bin/sh
-    - -c
+  # A single sync lists and externally sorts each bucket once.
+  # --size-only avoids one HEAD per object while still recopying objects
+  # whose sizes differ. The external-sort files live on the scratch PVC.
   args:
-    - |
-      set -eu
-
-      # A single sync lists and externally sorts each bucket once. 
-      # --size-only avoids one HEAD per object while still recopying objects
-      # whose sizes differ. The external-sort files live on the scratch PVC.
-      /s5cmd --log error --stat --numworkers "$S5CMD_WORKERS" \
-        sync --size-only "s3://$SRC_BUCKET/*" "s3://$DST_BUCKET/"
-
-      echo "Sync complete"
+    - --log
+    - error
+    - --stat
+    - --numworkers
+    - "$(S5CMD_WORKERS)"
+    - sync
+    - --size-only
+    - "s3://$(SRC_BUCKET)/*"
+    - "s3://$(DST_BUCKET)/"
 
 env:
   - name: SRC_BUCKET
