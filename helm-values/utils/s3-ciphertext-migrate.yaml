@@ -8,27 +8,11 @@ fullnameOverride: s3-ciphertext-migrate
 
 namespace: coproc-admin
 
-imagePullSecrets:
-  - name: registry-credentials
-
 image:
-  repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
-  tag: "2.30-dev"
+  repository: peakcom/s5cmd
+  tag: "v2.3.0"
 
 serviceAccountName: s3-migrate
-
-extraObjects:
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: s3-ciphertext-migrate-awsconfig
-      namespace: '{{ include "coprocessor-rds-postgres-jobs.namespace" . }}'
-    data:
-      config: |
-        [default]
-        s3 =
-          max_concurrent_requests = 200
-          max_queue_size = 10000
 
 podAnnotations:
   karpenter.sh/do-not-disrupt: "true"
@@ -50,23 +34,19 @@ job:
     - |
       set -eu
 
-      aws sts get-caller-identity
-
-      # Reports what the CLI resolved, not just that the ConfigMap mounted.
-      echo "max_concurrent_requests=$(aws configure get s3.max_concurrent_requests)"
-      echo "max_queue_size=$(aws configure get s3.max_queue_size)"
-
-      aws s3 sync "s3://$SRC_BUCKET" "s3://$DST_BUCKET" \
-        --source-region "$SRC_REGION" \
-        --only-show-errors
+      # A single sync lists and externally sorts each bucket once. Splitting
+      # flat hash keys into multiple sync commands is slower because every
+      # command still lists and sorts the entire destination bucket.
+      # --size-only avoids one HEAD per object while still recopying objects
+      # whose sizes differ. The external-sort files live on the scratch PVC.
+      /s5cmd --log error --stat --numworkers "$S5CMD_WORKERS" \
+        sync --size-only "s3://$SRC_BUCKET/*" "s3://$DST_BUCKET/"
 
       echo "Sync complete"
 
 env:
   - name: SRC_BUCKET
     value: "" # CHANGE ME
-  - name: SRC_REGION
-    value: "eu-west-1"
   - name: DST_BUCKET
     valueFrom:
       configMapKeyRef:
@@ -77,29 +57,38 @@ env:
   # The CLI creates ~/.aws on startup, and the default home is on the
   # read-only root filesystem.
   - name: HOME
-    value: /tmp
+    value: /scratch
+  - name: TMPDIR
+    value: /scratch
+  - name: S5CMD_WORKERS
+    value: "512"
 
-volumes:
-  - name: aws-config
-    configMap:
-      name: s3-ciphertext-migrate-awsconfig
-  - name: tmp
-    emptyDir: {}
+persistentVolumeClaim:
+  enabled: true
+  name: s3-ciphertext-migrate-scratch
+  storageClassName: gp3
+  accessModes:
+    - ReadWriteOnce
+  size: 200Gi
 
 volumeMounts:
-  - name: aws-config
-    mountPath: /aws-config
-    readOnly: true
-  - name: tmp
-    mountPath: /tmp
+  - name: scratch
+    mountPath: /scratch
 
+volumes:
+  - name: scratch
+    persistentVolumeClaim:
+      claimName: s3-ciphertext-migrate-scratch
+
+# Bucket listing is network-bound and s5cmd's diff is disk-backed. Reserve
+# enough memory for sorting/copy buffers without monopolising an entire node.
 resources:
   requests:
-    cpu: "2"
-    memory: 4Gi
+    cpu: "8"
+    memory: 16Gi
   limits:
-    cpu: "3.5"
-    memory: 12Gi
+    cpu: "100"
+    memory: 600Gi
 
 affinity:
   nodeAffinity:
@@ -109,10 +98,10 @@ affinity:
             - key: karpenter.sh/nodepool
               operator: In
               values:
-                - zws-pool
+                - coprocessor-pool
 
 tolerations:
   - key: karpenter.sh/nodepool
     effect: NoSchedule
     operator: Equal
-    value: zws-pool
+    value: coprocessor-pool

@@ -94,38 +94,6 @@ volumeMounts:
     mountPath: /shared
 ```
 
-### Extra Objects
-
-`extraObjects` renders arbitrary manifests alongside the Job, passed through verbatim. Use it for small supporting resources that do not warrant dedicated values — most commonly a ConfigMap holding a config file for a setting that has no environment-variable equivalent.
-
-Entries are rendered through `tpl`, so they may reference the release context:
-
-```yaml
-extraObjects:
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: my-job-awsconfig
-      namespace: '{{ include "coprocessor-rds-postgres-jobs.namespace" . }}'
-    data:
-      config: |
-        [default]
-        s3 =
-          max_concurrent_requests = 200
-
-volumes:
-  - name: aws-config
-    configMap:
-      name: my-job-awsconfig
-
-volumeMounts:
-  - name: aws-config
-    mountPath: /aws-config
-    readOnly: true
-```
-
-These manifests are unvalidated passthrough, so a malformed entry fails at apply time rather than at template time. Run `helm template` before installing. Note that Helm does not guarantee ordering between `extraObjects` themselves, though it does create ConfigMaps before Jobs.
-
 ## Security Considerations
 
 * `job.enabled` defaults to `false` — no resources are rendered unless explicitly enabled, preventing accidental execution
