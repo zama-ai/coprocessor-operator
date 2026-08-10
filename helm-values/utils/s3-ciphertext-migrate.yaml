@@ -1,0 +1,114 @@
+# One-off bulk copy of the ciphertext corpus from a Zama-owned source bucket
+# into the partner's coprocessor bucket. 
+#
+# Before running:
+#   1. Set SRC_BUCKET
+
+fullnameOverride: s3-ciphertext-migrate
+
+namespace: coproc-admin
+
+imagePullSecrets:
+  - name: registry-credentials
+
+image:
+  repository: hub.zama.org/zama-protocol/zama-ai/security-hub/infra/s5cmd
+  tag: "v2.3.0"
+
+serviceAccountName: s3-migrate
+
+podAnnotations:
+  karpenter.sh/do-not-disrupt: "true"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10002
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+job:
+  enabled: true
+  backoffLimit: 2
+  restartPolicy: Never
+  # A single sync lists and externally sorts each bucket once.
+  # --size-only avoids one HEAD per object while still recopying objects
+  # whose sizes differ. The external-sort files live on the scratch PVC.
+  args:
+    - --log
+    - error
+    - --stat
+    - --numworkers
+    - "$(S5CMD_WORKERS)"
+    - sync
+    - --size-only
+    - "s3://$(SRC_BUCKET)/*"
+    - "s3://$(DST_BUCKET)/"
+
+env:
+  - name: SRC_BUCKET
+    value: "" # CHANGE ME
+  - name: DST_BUCKET
+    valueFrom:
+      configMapKeyRef:
+        name: db-admin-config
+        key: S3_BUCKET_NAME
+  - name: AWS_CONFIG_FILE
+    value: /aws-config/config
+  # The CLI creates ~/.aws on startup, and the default home is on the
+  # read-only root filesystem.
+  - name: HOME
+    value: /scratch
+  - name: TMPDIR
+    value: /scratch
+  - name: S5CMD_WORKERS
+    value: "512"
+
+persistentVolumeClaim:
+  enabled: true
+  name: s3-ciphertext-migrate-scratch
+  storageClassName: gp3
+  accessModes:
+    - ReadWriteOnce
+  size: 200Gi
+
+volumeMounts:
+  - name: scratch
+    mountPath: /scratch
+
+volumes:
+  - name: scratch
+    persistentVolumeClaim:
+      claimName: s3-ciphertext-migrate-scratch
+
+# Bucket listing is network-bound and s5cmd's diff is disk-backed. Reserve
+# enough memory for sorting/copy buffers without monopolising an entire node.
+resources:
+  requests:
+    cpu: "8"
+    memory: 16Gi
+  limits:
+    cpu: "100"
+    memory: 600Gi
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - coprocessor-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: coprocessor-pool
