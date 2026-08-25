@@ -147,7 +147,7 @@ txSender:
   - --error-sleep-max-secs=4
   - --txn-receipt-timeout-secs=4
   - --review-after-unlimited-retries=30
-  - --gas-limit-overprovision-percent=120
+  - --gas-limit-overprovision-percent=300
   - --provider-retry-interval=4s
   - --graceful-shutdown-timeout=8s
   - --log-level=INFO
@@ -203,7 +203,7 @@ txSender:
 
 dbMigration:
   enabled: false
-  
+
 tfheWorker:
   enabled: false
 
