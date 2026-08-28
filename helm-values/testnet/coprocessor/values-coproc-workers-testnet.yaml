@@ -1,3 +1,5 @@
+# Coprocessor Helm chart: 0.13.3
+
 commonConfig:
   databaseUser:
     valueFrom:
@@ -209,9 +211,7 @@ snsWorker:
 
 dbMigration:
   enabled: false
-
 gwListener:
   enabled: false
-
 txSender:
   enabled: false

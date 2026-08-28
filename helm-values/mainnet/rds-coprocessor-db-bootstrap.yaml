@@ -1,6 +1,3 @@
-# Mainnet bootstrap inputs must be supplied from the approved Zama snapshot.
-# Keep Coprocessor workloads stopped until this Job has completed successfully.
-
 fullnameOverride: coprocessor-db-bootstrap
 
 imagePullSecrets:
@@ -17,6 +14,10 @@ env:
     value: "1"
   - name: REPLAY_START_BLOCK
     value: "" # CHANGE ME: set to the approved Ethereum mainnet replay start block
+  - name: POLYGON_CHAIN_ID
+    value: "137"
+  - name: POLYGON_SEED_START_BLOCK
+    value: "91491593"
   - name: GATEWAY_REPLAY_START
     value: "" # CHANGE ME: set to the approved Gateway mainnet replay start block
 
@@ -47,6 +48,7 @@ job:
       MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
 
       : "${REPLAY_START_BLOCK:?REPLAY_START_BLOCK must be set}"
+      : "${POLYGON_SEED_START_BLOCK:?POLYGON_SEED_START_BLOCK must be set}"
       : "${GATEWAY_REPLAY_START:?GATEWAY_REPLAY_START must be set}"
 
       export PGPASSWORD="$MASTER_PASS"
@@ -92,12 +94,21 @@ job:
 
       echo "Patching listener cursors for replay..."
       psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v ON_ERROR_STOP=1 \
         -v chain_id="$CHAIN_ID" \
         -v replay_start_block="$REPLAY_START_BLOCK" \
+        -v polygon_chain_id="$POLYGON_CHAIN_ID" \
+        -v polygon_seed_start_block="$POLYGON_SEED_START_BLOCK" \
         -v gateway_replay_start="$GATEWAY_REPLAY_START" \
         <<SQL
       INSERT INTO public.host_listener_poller_state (chain_id, last_caught_up_block)
       VALUES (:chain_id, :replay_start_block - 1)
+      ON CONFLICT (chain_id) DO UPDATE
+      SET last_caught_up_block = EXCLUDED.last_caught_up_block,
+          updated_at = NOW();
+
+      INSERT INTO public.host_listener_poller_state (chain_id, last_caught_up_block)
+      VALUES (:polygon_chain_id, :polygon_seed_start_block)
       ON CONFLICT (chain_id) DO UPDATE
       SET last_caught_up_block = EXCLUDED.last_caught_up_block,
           updated_at = NOW();
@@ -144,7 +155,7 @@ initContainers:
         aws s3 sync --no-progress "$S3_DUMP_URI" /dump/copro_bootstrap_dir/
     env:
       - name: S3_DUMP_URI
-        value: "" # CHANGE ME: set to the approved mainnet database dump S3 URI
+        value: "s3://zama-mainnet-coprocessor-table-dump/v1/"
     volumeMounts:
       - name: dump
         mountPath: /dump

@@ -1,3 +1,5 @@
+# Coprocessor Helm chart: 0.13.3
+
 commonConfig:
   databaseUser:
     valueFrom:
@@ -113,10 +115,10 @@ zkProofWorker:
     enabled: true
   resources:
     requests:
-      cpu: 28
+      cpu: 48
       memory: 128Gi
     limits:
-      cpu: 28
+      cpu: 48
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -182,10 +184,10 @@ snsWorker:
     enabled: true
   resources:
     requests:
-      cpu: 36
+      cpu: 48
       memory: 128Gi
     limits:
-      cpu: 36
+      cpu: 48
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -209,9 +211,7 @@ snsWorker:
 
 dbMigration:
   enabled: false
-
 gwListener:
   enabled: false
-
 txSender:
   enabled: false

@@ -1,3 +1,5 @@
+# Coprocessor Helm chart: 0.13.3
+
 commonConfig:
   databaseUser:
     valueFrom:
