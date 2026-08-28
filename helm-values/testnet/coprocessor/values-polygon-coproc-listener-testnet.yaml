@@ -39,7 +39,7 @@ hostListenerShared:
     - --initial-block-time=2
     - --catchup-finalization-in-blocks=4
     - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=4
+    - --reorg-maximum-duration-in-blocks=120
     - --log-level=INFO
     - --dependence-cross-block
     - --dependent-ops-max-per-chain=0
