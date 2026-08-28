@@ -1,0 +1,83 @@
+commonConfig:
+  databaseUser:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: username
+  databasePassword:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: password
+  databaseEndpoint:
+    valueFrom:
+      configMapKeyRef:
+        name: coprocessor-config
+        key: DATABASE_ENDPOINT
+  databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor?sslmode=prefer"
+
+hostContractConfigMap:
+  enabled: true
+  name: eth-sc-addresses
+  network: mainnet
+
+polygonContractConfigMap:
+  enabled: true
+  name: polygon-sc-addresses
+  network: mainnet
+
+chains:
+  - name: ethereum
+    chainId: "1"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: acl.address
+  - name: polygon
+    chainId: "137"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: polygon-sc-addresses
+        key: acl.address
+
+dbMigration:
+  enabled: true
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/db-migration
+    tag: v0.13.0
+  resources:
+    requests:
+      cpu: 2
+      memory: 8Gi
+    limits:
+      cpu: 2
+      memory: 8Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+
+tfheWorker:
+  enabled: false
+
+zkProofWorker:
+  enabled: false
+
+snsWorker:
+  enabled: false
+
+gwListener:
+  enabled: false
+
+txSender:
+  enabled: false
