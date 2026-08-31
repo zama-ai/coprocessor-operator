@@ -1,4 +1,4 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.12
 
 commonConfig:
   databaseUser:
@@ -21,10 +21,10 @@ commonConfig:
     enabled: true
     endpoint: "http://k8s-monitoring-alloy-receiver.monitoring.svc.cluster.local:4317"
 
-hostContractConfigMap:
+polygonContractConfigMap:
   enabled: true
-  name: eth-sc-addresses
-  network: testnet
+  name: polygon-sc-addresses
+  network: mainnet
 
 hostListenerShared:
   image:
@@ -32,17 +32,18 @@ hostListenerShared:
     tag: v0.13.0
   replicas: 1
   args:
-    serviceName: testnet-coprocessor-host-listener
+    serviceName: mainnet-coprocessor-host-listener-polygon
   tracing:
-    service: testnet-coprocessor-host-listener
+    service: mainnet-coprocessor-host-listener-polygon
   extraArgs:
-    - --initial-block-time=12
-    - --catchup-finalization-in-blocks=5
+    - --initial-block-time=2
+    - --catchup-finalization-in-blocks=4
     - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=50
+    - --reorg-maximum-duration-in-blocks=120
     - --log-level=INFO
     - --dependence-cross-block
     - --dependent-ops-max-per-chain=0
+    - --catchup-paging=1000
   ports:
     metrics: "9100"
   serviceMonitor:
@@ -77,66 +78,21 @@ hostListenerShared:
 hostListenerPollerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
+    tag: v0.13.2
   replicas: 1
   args:
-    serviceName: testnet-coprocessor-host-listener-poller
+    serviceName: mainnet-coprocessor-host-listener-poller-polygon
+  tracing:
+    service: mainnet-coprocessor-host-listener-poller-polygon
   extraArgs:
     - --log-level=INFO
     - --dependence-cross-block
-    - --finality-lag=15
+    - --dependent-ops-max-per-chain=0
+    - --finality-lag=120
+    - --poll-interval-ms=1500
+    - --batch-size=1000
   ports:
     metrics: "9100"
-  serviceMonitor:
-    enabled: true
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
-    limits:
-      cpu: 1
-      memory: 2Gi
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: karpenter.sh/nodepool
-                operator: In
-                values:
-                  - zws-pool
-  tolerations:
-    - key: karpenter.sh/nodepool
-      effect: NoSchedule
-      operator: Equal
-      value: zws-pool
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-
-hostListenerCatchupOnlyShared:
-  image:
-    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
-  replicas: 1
-  args:
-    serviceName: testnet-coprocessor-host-listener-catchup-only
-  extraArgs:
-    - --initial-block-time=12
-    - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=50
-    - --catchup-finalization-in-blocks=5
-    - --log-level=INFO
-    - --dependence-cross-block
-    - --only-catchup-loop
-    - --start-at-block=-250
-    - --end-at-block=-15
-    - --catchup-loop-sleep-secs=60
-  ports:
-    metrics: "9100"
-    healthcheck: "8080"
   serviceMonitor:
     enabled: true
   resources:
@@ -167,36 +123,40 @@ hostListenerCatchupOnlyShared:
       maxUnavailable: 0
 
 chains:
-  - name: ethereum
+  - name: polygon
     wsUrlValueFrom:
       secretKeyRef:
         name: rpc-credentials
-        key: ethereum-rpc-ws-url
+        key: polygon-rpc-ws-url
     httpUrlValueFrom:
       secretKeyRef:
         name: rpc-credentials
-        key: ethereum-rpc-url
+        key: polygon-rpc-url
     aclContractAddressValueFrom:
       configMapKeyRef:
-        name: eth-sc-addresses
+        name: polygon-sc-addresses
         key: acl.address
     fhevmExecutorContractAddressValueFrom:
       configMapKeyRef:
-        name: eth-sc-addresses
+        name: polygon-sc-addresses
         key: fhevm_executor.address
-    kmsGenerationContractAddressValueFrom:
-      configMapKeyRef:
-        name: eth-sc-addresses
-        key: kms_generation.address
+    kmsGenerationContractAddress: "0x0000000000000000000000000000000000000000"
     hostListener:
       enabled: true
       useLegacyName: true
+      serviceName: mainnet-coprocessor-host-listener-polygon
+      extraArgs:
+        # Polygon PoS block on which the v0.13 host contracts were deployed.
+        # TODO: Remove after the initial mainnet deployment completes successfully.
+        - --start-at-block=91491593
     hostListenerPoller:
       enabled: true
       useLegacyName: true
-    hostListenerCatchupOnly:
-      enabled: true
-      useLegacyName: true
+      serviceName: mainnet-coprocessor-host-listener-poller-polygon
+      extraArgs:
+        # Polygon PoS block on which the v0.13 host contracts were deployed.
+        # TODO: Remove after the initial mainnet deployment completes successfully.
+        - --seed-start-block=91491593
 
 dbMigration:
   enabled: false

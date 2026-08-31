@@ -1,12 +1,14 @@
 # NOTE: This job is meant to be run on a live Zama cluster (e.g. testnet,
 # mainnet), where the database-credentials secret and network access to the
-# snapshot-restore RDS exist. Point DATABASE_ENDPOINT at a snapshot-restore
+# snapshot-restore RDS exist. Point DATABASE_HOST at a snapshot-restore
 # copy of the coprocessor DB — never at the live database itself.
 
 fullnameOverride: coprocessor-db-dump
 
 imagePullSecrets:
   - name: registry-credentials
+
+serviceAccountName: s3-dump
 
 image:
   repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
@@ -15,7 +17,6 @@ image:
 persistentVolumeClaim:
   enabled: true
   name: coproc-db-dump-scratch
-  storageClassName: gp3
   accessModes:
     - ReadWriteOnce
   size: 200Gi
@@ -33,11 +34,19 @@ initContainers:
       - |
         set -euo pipefail
 
-        export PGSSLMODE=require
-        DB_HOST="${DATABASE_ENDPOINT%:*}"
+        : "${DATABASE_HOST:?DATABASE_HOST must be set to a snapshot-restore database}"
+        : "${DATABASE_PORT:?DATABASE_PORT must be set}"
+        : "${DATABASE_NAME:?DATABASE_NAME must be set}"
+        : "${DATABASE_SSLMODE:?DATABASE_SSLMODE must be set}"
+        : "${DATABASE_USERNAME:?DATABASE_USERNAME must be set}"
+        : "${PGPASSWORD:?PGPASSWORD must be set}"
+        : "${HOST_CHAIN_ID:?HOST_CHAIN_ID must be set}"
 
-        echo "Running pre-dump cleanup on $DB_HOST..."
-        psql "host=$DB_HOST port=5432 user=$DATABASE_USERNAME dbname=coprocessor sslmode=require" \
+        export PGSSLMODE="$DATABASE_SSLMODE"
+        DATABASE_CONNECTION="host=$DATABASE_HOST port=$DATABASE_PORT user=$DATABASE_USERNAME dbname=$DATABASE_NAME sslmode=$DATABASE_SSLMODE"
+
+        echo "Running pre-dump cleanup on $DATABASE_HOST..."
+        psql "$DATABASE_CONNECTION" \
           -v ON_ERROR_STOP=1 <<'EOSQL'
 
         -- 1. Create replacement index first (CONCURRENTLY cannot run in a transaction)
@@ -63,14 +72,15 @@ initContainers:
         echo ""
         echo "Block heights — record these in rds-coprocessor-db-bootstrap.yaml"
         echo "(REPLAY_START_BLOCK / GATEWAY_REPLAY_START):"
-        psql "host=$DB_HOST port=5432 user=$DATABASE_USERNAME dbname=coprocessor sslmode=require" \
-          -v ON_ERROR_STOP=1 <<'EOSQL'
+        psql "$DATABASE_CONNECTION" \
+          -v ON_ERROR_STOP=1 \
+          -v host_chain_id="$HOST_CHAIN_ID" <<'EOSQL'
 
         SELECT
           (
             SELECT MAX(block_number)
             FROM host_chain_blocks_valid
-            WHERE chain_id = 11155111
+            WHERE chain_id = :'host_chain_id'
           ) AS host_chain_blocks_valid_height,
           (
             SELECT last_block_num
@@ -83,10 +93,10 @@ initContainers:
         echo "Dumping tables to /dump/copro_bootstrap_dir..."
         rm -rf /dump/copro_bootstrap_dir
         pg_dump \
-          --host="$DB_HOST" \
-          --port=5432 \
+          --host="$DATABASE_HOST" \
+          --port="$DATABASE_PORT" \
           --username="$DATABASE_USERNAME" \
-          --dbname=coprocessor \
+          --dbname="$DATABASE_NAME" \
           --format=directory \
           --jobs=8 \
           --compress=0 \
@@ -97,10 +107,22 @@ initContainers:
           --table=public.crs \
           --file=/dump/copro_bootstrap_dir
 
+        # pg_dump creates directory-format dumps with owner-only permissions.
+        # Grant the Pod fsGroup read/traverse access for the uploader container.
+        chmod -R g+rX /dump/copro_bootstrap_dir
+
         echo "Dump complete ✅"
     env:
-      - name: DATABASE_ENDPOINT
-        value: "<update-me>" # Only run a snapshot restore db
+      - name: DATABASE_HOST
+        value: "" # CHANGE ME: only use a snapshot-restore database
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_NAME
+        value: "coprocessor"
+      - name: DATABASE_SSLMODE
+        value: "require"
+      - name: HOST_CHAIN_ID
+        value: "" # CHANGE ME: Ethereum host-chain ID (for example, 11155111 or 1)
       - name: DATABASE_USERNAME
         valueFrom:
           secretKeyRef:
@@ -134,6 +156,14 @@ job:
     - |
       set -euo pipefail
 
+      : "${S3_DUMP_URI:?S3_DUMP_URI must be set}"
+      : "${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION must be set}"
+
+      if [ ! -r /dump/copro_bootstrap_dir/toc.dat ]; then
+        echo "Dump directory is missing or unreadable" >&2
+        exit 1
+      fi
+
       echo "Uploading dump to $S3_DUMP_URI..."
 
       aws s3 cp --no-progress /dump/copro_bootstrap_dir "$S3_DUMP_URI" --recursive
@@ -142,19 +172,9 @@ job:
 
 env:
   - name: S3_DUMP_URI
-    value: "<update-me>"
+    value: "" # CHANGE ME: S3 URI for the dump directory
   - name: AWS_DEFAULT_REGION
-    value: "eu-west-1"
-  - name: AWS_ACCESS_KEY_ID
-    valueFrom:
-      secretKeyRef:
-        name: s3-dump-credentials
-        key: AWS_ACCESS_KEY_ID
-  - name: AWS_SECRET_ACCESS_KEY
-    valueFrom:
-      secretKeyRef:
-        name: s3-dump-credentials
-        key: AWS_SECRET_ACCESS_KEY
+    value: "" # CHANGE ME: AWS region containing the destination bucket
 
 volumes:
   - name: dump
@@ -164,19 +184,3 @@ volumes:
 volumeMounts:
   - name: dump
     mountPath: /dump
-
-affinity:
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: karpenter.sh/nodepool
-              operator: In
-              values:
-                - coprocessor-pool
-
-tolerations:
-  - key: karpenter.sh/nodepool
-    effect: NoSchedule
-    operator: Equal
-    value: coprocessor-pool

@@ -1,0 +1,191 @@
+fullnameOverride: coprocessor-db-bootstrap
+
+imagePullSecrets:
+  - name: registry-credentials
+
+serviceAccountName: db-admin
+
+image:
+  repository: hub.zama.org/zama-protocol/zama.ai/postgres
+  tag: "18-dev"
+
+env:
+  - name: CHAIN_ID
+    value: "1"
+  - name: REPLAY_START_BLOCK
+    value: "25874258"
+  - name: POLYGON_CHAIN_ID
+    value: "137"
+  - name: POLYGON_SEED_START_BLOCK
+    value: "91491593"
+  - name: GATEWAY_REPLAY_START
+    value: "2860826"
+
+persistentVolumeClaim:
+  enabled: true
+  name: coproc-db-bootstrap-dump
+  storageClassName: gp3
+  accessModes:
+    - ReadWriteOnce
+  size: 200Gi
+
+podSecurityContext:
+  fsGroup: 1000
+
+job:
+  enabled: true
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  restartPolicy: Never
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - |
+      set -euo pipefail
+
+      MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
+      MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
+
+      : "${REPLAY_START_BLOCK:?REPLAY_START_BLOCK must be set}"
+      : "${POLYGON_SEED_START_BLOCK:?POLYGON_SEED_START_BLOCK must be set}"
+      : "${GATEWAY_REPLAY_START:?GATEWAY_REPLAY_START must be set}"
+
+      export PGPASSWORD="$MASTER_PASS"
+      export PGSSLMODE=require
+
+      echo "Preparing database for restore (truncating target tables, dropping large objects)..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v ON_ERROR_STOP=1 <<SQL
+      TRUNCATE public.ciphertexts, public.keys, public.crs CASCADE;
+      SELECT lo_unlink(oid) FROM pg_largeobject_metadata;
+      SQL
+
+      echo "Restoring bootstrap tables..."
+      pg_restore \
+        --host=coprocessor-database.coproc.svc.cluster.local \
+        --port=5432 \
+        --username="$MASTER_USER" \
+        --dbname=coprocessor \
+        --no-owner \
+        --no-privileges \
+        --data-only \
+        --jobs=8 \
+        --verbose \
+        /dump/copro_bootstrap_dir/
+
+      echo "Ensuring sns_pk large objects are owned by coprocessor_user..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        <<SQL
+      DO \$\$
+      DECLARE
+          lo_oid oid;
+      BEGIN
+          FOR lo_oid IN
+              SELECT sns_pk
+              FROM public.keys
+              WHERE sns_pk IS NOT NULL
+          LOOP
+              EXECUTE format('ALTER LARGE OBJECT %s OWNER TO coprocessor_user', lo_oid);
+          END LOOP;
+      END
+      \$\$;
+      SQL
+
+      echo "Patching listener cursors for replay..."
+      psql "host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require" \
+        -v ON_ERROR_STOP=1 \
+        -v chain_id="$CHAIN_ID" \
+        -v replay_start_block="$REPLAY_START_BLOCK" \
+        -v polygon_chain_id="$POLYGON_CHAIN_ID" \
+        -v polygon_seed_start_block="$POLYGON_SEED_START_BLOCK" \
+        -v gateway_replay_start="$GATEWAY_REPLAY_START" \
+        <<SQL
+      INSERT INTO public.host_listener_poller_state (chain_id, last_caught_up_block)
+      VALUES (:chain_id, :replay_start_block - 1)
+      ON CONFLICT (chain_id) DO UPDATE
+      SET last_caught_up_block = EXCLUDED.last_caught_up_block,
+          updated_at = NOW();
+
+      INSERT INTO public.host_listener_poller_state (chain_id, last_caught_up_block)
+      VALUES (:polygon_chain_id, :polygon_seed_start_block)
+      ON CONFLICT (chain_id) DO UPDATE
+      SET last_caught_up_block = EXCLUDED.last_caught_up_block,
+          updated_at = NOW();
+
+      INSERT INTO public.gw_listener_last_block (dummy_id, last_block_num, earliest_open_ct_commits_block)
+      VALUES (true, :gateway_replay_start - 1, NULL)
+      ON CONFLICT (dummy_id) DO UPDATE
+      SET last_block_num = EXCLUDED.last_block_num,
+          earliest_open_ct_commits_block = EXCLUDED.earliest_open_ct_commits_block;
+      SQL
+
+      echo "Restore complete ✅"
+
+initContainers:
+  - name: fetch-rds-secret
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        aws secretsmanager get-secret-value \
+          --secret-id "$RDS_ADMIN_SECRET_ID" \
+          --query SecretString \
+          --output text > /shared/rds-master.json
+    env:
+      - name: RDS_ADMIN_SECRET_ID
+        valueFrom:
+          configMapKeyRef:
+            name: db-admin-config
+            key: "RDS_ADMIN_SECRET_ID"
+    volumeMounts:
+      - name: shared-creds
+        mountPath: /shared
+
+  - name: download-dump
+    image:
+      repository: hub.zama.org/zama-protocol/zama.ai/aws-cli
+      tag: "2.30-dev"
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        mkdir -p /dump/copro_bootstrap_dir
+        aws s3 sync --no-progress "$S3_DUMP_URI" /dump/copro_bootstrap_dir/
+    env:
+      - name: S3_DUMP_URI
+        value: "s3://zama-mainnet-coprocessor-table-dump/v1/"
+    volumeMounts:
+      - name: dump
+        mountPath: /dump
+
+volumes:
+  - name: shared-creds
+    emptyDir:
+      medium: Memory
+  - name: dump
+    persistentVolumeClaim:
+      claimName: coproc-db-bootstrap-dump
+
+volumeMounts:
+  - name: shared-creds
+    mountPath: /shared
+  - name: dump
+    mountPath: /dump
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - zws-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: zws-pool

@@ -1,4 +1,4 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.15
 
 commonConfig:
   databaseUser:
@@ -24,7 +24,7 @@ commonConfig:
 hostContractConfigMap:
   enabled: true
   name: eth-sc-addresses
-  network: testnet
+  network: mainnet
 
 hostListenerShared:
   image:
@@ -32,14 +32,14 @@ hostListenerShared:
     tag: v0.13.0
   replicas: 1
   args:
-    serviceName: testnet-coprocessor-host-listener
+    serviceName: mainnet-coprocessor-host-listener
   tracing:
-    service: testnet-coprocessor-host-listener
+    service: mainnet-coprocessor-host-listener
   extraArgs:
     - --initial-block-time=12
-    - --catchup-finalization-in-blocks=5
     - --dependence-cache-size=10000
     - --reorg-maximum-duration-in-blocks=50
+    - --catchup-finalization-in-blocks=5
     - --log-level=INFO
     - --dependence-cross-block
     - --dependent-ops-max-per-chain=0
@@ -80,63 +80,13 @@ hostListenerPollerShared:
     tag: v0.13.0
   replicas: 1
   args:
-    serviceName: testnet-coprocessor-host-listener-poller
+    serviceName: mainnet-coprocessor-host-listener-poller
   extraArgs:
     - --log-level=INFO
     - --dependence-cross-block
     - --finality-lag=15
   ports:
     metrics: "9100"
-  serviceMonitor:
-    enabled: true
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
-    limits:
-      cpu: 1
-      memory: 2Gi
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: karpenter.sh/nodepool
-                operator: In
-                values:
-                  - zws-pool
-  tolerations:
-    - key: karpenter.sh/nodepool
-      effect: NoSchedule
-      operator: Equal
-      value: zws-pool
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-
-hostListenerCatchupOnlyShared:
-  image:
-    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
-  replicas: 1
-  args:
-    serviceName: testnet-coprocessor-host-listener-catchup-only
-  extraArgs:
-    - --initial-block-time=12
-    - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=50
-    - --catchup-finalization-in-blocks=5
-    - --log-level=INFO
-    - --dependence-cross-block
-    - --only-catchup-loop
-    - --start-at-block=-250
-    - --end-at-block=-15
-    - --catchup-loop-sleep-secs=60
-  ports:
-    metrics: "9100"
-    healthcheck: "8080"
   serviceMonitor:
     enabled: true
   resources:
@@ -192,9 +142,6 @@ chains:
       enabled: true
       useLegacyName: true
     hostListenerPoller:
-      enabled: true
-      useLegacyName: true
-    hostListenerCatchupOnly:
       enabled: true
       useLegacyName: true
 

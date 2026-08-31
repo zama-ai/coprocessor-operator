@@ -45,7 +45,7 @@ commonConfig:
 gatewayContractConfigMap:
   enabled: true
   name: gw-sc-addresses
-  network: testnet
+  network: mainnet
 
 gwListener:
   enabled: true
@@ -54,7 +54,7 @@ gwListener:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/gw-listener
     tag: v0.13.0
   tracing:
-    service: testnet-coprocessor-gw-listener
+    service: mainnet-coprocessor-gw-listener
   disabledArgs:
     - health-check-port
     - metrics-addr
@@ -65,7 +65,7 @@ gwListener:
     - --error-sleep-max-secs=10
     - --get-logs-poll-interval=1s
     - --get-logs-block-batch-size=100
-    - --drift-auto-revert-enabled
+    # --drift-auto-revert-enabled is intentionally omitted to match the Zama mainnet deployment.
   ports:
     metrics: 9100
     healthcheck: 8080
@@ -88,25 +88,25 @@ gwListener:
     enabled: true
   resources:
     requests:
-      cpu: 1
-      memory: 8Gi
+      cpu: 8
+      memory: 16Gi
     limits:
-      cpu: 1
-      memory: 8Gi
+      cpu: 8
+      memory: 16Gi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions:
-          - key: karpenter.sh/nodepool
-            operator: In
-            values:
-            - zws-pool
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
   tolerations:
-  - key: karpenter.sh/nodepool
-    effect: NoSchedule
-    operator: Equal
-    value: zws-pool
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -127,7 +127,7 @@ txSender:
         name: coprocessor-tx-sender
         key: AWS_KEY_ID
   tracing:
-    service: testnet-coprocessor-tx-sender
+    service: mainnet-coprocessor-tx-sender
   disabledArgs:
     - multichain-acl-address
     - health-check-port
@@ -187,16 +187,16 @@ txSender:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions:
-          - key: karpenter.sh/nodepool
-            operator: In
-            values:
-            - zws-pool
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
   tolerations:
-  - key: karpenter.sh/nodepool
-    effect: NoSchedule
-    operator: Equal
-    value: zws-pool
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:

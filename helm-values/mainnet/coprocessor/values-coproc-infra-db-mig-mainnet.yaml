@@ -1,4 +1,4 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.12
 
 commonConfig:
   databaseUser:
@@ -21,22 +21,22 @@ commonConfig:
 hostContractConfigMap:
   enabled: true
   name: eth-sc-addresses
-  network: testnet
+  network: mainnet
 
 polygonContractConfigMap:
   enabled: true
   name: polygon-sc-addresses
-  network: testnet
+  network: mainnet
 
 chains:
-  - name: sepolia
-    chainId: "11155111"
+  - name: ethereum
+    chainId: "1"
     aclContractAddressValueFrom:
       configMapKeyRef:
         name: eth-sc-addresses
         key: acl.address
-  - name: polygonAmoy
-    chainId: "80002"
+  - name: polygon
+    chainId: "137"
     aclContractAddressValueFrom:
       configMapKeyRef:
         name: polygon-sc-addresses

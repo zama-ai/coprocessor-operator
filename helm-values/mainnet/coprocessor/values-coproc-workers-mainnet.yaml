@@ -22,14 +22,14 @@ commonConfig:
     endpoint: "http://k8s-monitoring-alloy-receiver.monitoring.svc.cluster.local:4317"
 
 chains:
-  - name: sepolia
-    chainId: "11155111"
+  - name: ethereum
+    chainId: "1"
     aclContractAddressValueFrom:
       configMapKeyRef:
         name: eth-sc-addresses
         key: acl.address
-  - name: polygonAmoy
-    chainId: "80002"
+  - name: polygon
+    chainId: "137"
     aclContractAddressValueFrom:
       configMapKeyRef:
         name: polygon-sc-addresses
@@ -42,7 +42,7 @@ tfheWorker:
     tag: v0.13.0
   replicas: 1
   tracing:
-    service: testnet-coprocessor-tfhe-worker
+    service: mainnet-coprocessor-tfhe-worker
   disabledArgs:
     - health-check-port
   extraArgs:
@@ -97,7 +97,7 @@ zkProofWorker:
     tag: v0.13.0
   replicas: 1
   tracing:
-    service: testnet-coprocessor-zkpok-worker
+    service: mainnet-coprocessor-zkpok-worker
   disabledArgs:
     - metrics-addr
     - health-check-port
@@ -115,10 +115,10 @@ zkProofWorker:
     enabled: true
   resources:
     requests:
-      cpu: 28
+      cpu: 48
       memory: 128Gi
     limits:
-      cpu: 28
+      cpu: 48
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -154,7 +154,7 @@ snsWorker:
           name: coprocessor-config
           key: S3_BUCKET_NAME
   tracing:
-    service: testnet-coprocessor-sns-worker
+    service: mainnet-coprocessor-sns-worker
   disabledArgs:
     - metrics-addr
     - health-check-port
@@ -184,10 +184,10 @@ snsWorker:
     enabled: true
   resources:
     requests:
-      cpu: 36
+      cpu: 48
       memory: 128Gi
     limits:
-      cpu: 36
+      cpu: 48
       memory: 128Gi
   affinity:
     nodeAffinity:
