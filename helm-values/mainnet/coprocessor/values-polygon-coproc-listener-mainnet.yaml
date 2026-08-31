@@ -89,6 +89,8 @@ hostListenerPollerShared:
     - --dependence-cross-block
     - --dependent-ops-max-per-chain=0
     - --finality-lag=120
+    - --poll-interval-ms=1500
+    - --batch-size=1000
   ports:
     metrics: "9100"
   serviceMonitor:
