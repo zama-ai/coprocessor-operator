@@ -107,6 +107,10 @@ initContainers:
           --table=public.crs \
           --file=/dump/copro_bootstrap_dir
 
+        # pg_dump creates directory-format dumps with owner-only permissions.
+        # Grant the Pod fsGroup read/traverse access for the uploader container.
+        chmod -R g+rX /dump/copro_bootstrap_dir
+
         echo "Dump complete ✅"
     env:
       - name: DATABASE_HOST
@@ -154,6 +158,11 @@ job:
 
       : "${S3_DUMP_URI:?S3_DUMP_URI must be set}"
       : "${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION must be set}"
+
+      if [ ! -r /dump/copro_bootstrap_dir/toc.dat ]; then
+        echo "Dump directory is missing or unreadable" >&2
+        exit 1
+      fi
 
       echo "Uploading dump to $S3_DUMP_URI..."
 

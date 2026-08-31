@@ -13,13 +13,13 @@ env:
   - name: CHAIN_ID
     value: "1"
   - name: REPLAY_START_BLOCK
-    value: "" # CHANGE ME: set to the approved Ethereum mainnet replay start block
+    value: "25874258"
   - name: POLYGON_CHAIN_ID
     value: "137"
   - name: POLYGON_SEED_START_BLOCK
     value: "91491593"
   - name: GATEWAY_REPLAY_START
-    value: "" # CHANGE ME: set to the approved Gateway mainnet replay start block
+    value: "2860826"
 
 persistentVolumeClaim:
   enabled: true
