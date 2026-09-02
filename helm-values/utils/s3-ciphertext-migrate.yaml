@@ -47,6 +47,7 @@ job:
     - --numworkers
     - "$(S5CMD_WORKERS)"
     - sync
+    - --exit-on-error
     - --size-only
     - "s3://$(SRC_BUCKET)/*"
     - "s3://$(DST_BUCKET)/"
@@ -59,6 +60,10 @@ env:
       configMapKeyRef:
         name: db-admin-config
         key: S3_BUCKET_NAME
+  - name: AWS_REGION
+    value: ""
+  - name: AWS_DEFAULT_REGION
+    value: ""
   - name: AWS_CONFIG_FILE
     value: /aws-config/config
   # The CLI creates ~/.aws on startup, and the default home is on the
