@@ -151,7 +151,7 @@ txSender:
     - --review-after-unlimited-retries=30
     - --gas-limit-overprovision-percent=300
     - --provider-retry-interval=4s
-    - --graceful-shutdown-timeout=8s
+    - --graceful-shutdown-timeout=20s
     - --log-level=INFO
     - --metric-host-txn-latency=0.1:60.0:0.1
     - --metric-zkproof-txn-latency=0.1:60.0:0.1
