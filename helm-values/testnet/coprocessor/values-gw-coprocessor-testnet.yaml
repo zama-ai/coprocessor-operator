@@ -119,7 +119,13 @@ txSender:
   serviceAccountName: tx-sender
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tx-sender
-    tag: v0.13.0
+    tag: v0.13.5
+  env:
+    - name: GATEWAY_URL_HTTP
+      valueFrom:
+        secretKeyRef:
+          name: conduit-credentials
+          key: conduit-rpc-url
   wallet:
     awsKms:
       enabled: true
@@ -132,26 +138,26 @@ txSender:
     - multichain-acl-address
     - health-check-port
     - metrics-addr
+    - gateway-url
   extraArgs:
-    - --database-pool-size=32
+    - --gateway-url=$(GATEWAY_URL_HTTP)
+    - --database-pool-size=10
     - --database-polling-interval-secs=1
     - --verify-proof-resp-database-channel
     - event_zkpok_computed
     - --add-ciphertexts-database-channel
     - event_ciphertexts_uploaded
-    - --verify-proof-resp-batch-limit=10
+    - --verify-proof-resp-batch-limit=128
     - --verify-proof-resp-max-retries=6
     - --verify-proof-remove-after-max-retries
     - --add-ciphertexts-batch-limit=10
     - --add-ciphertexts-max-retries=2147483647
-    - --provider-max-retries=4294967295
     - --error-sleep-initial-secs=1
     - --error-sleep-max-secs=4
-    - --send-txn-sync-timeout-secs=16
+    - --send-txn-sync-timeout-secs=4
     - --review-after-unlimited-retries=30
     - --gas-limit-overprovision-percent=300
-    - --provider-retry-interval=4s
-    - --graceful-shutdown-timeout=20s
+    - --graceful-shutdown-timeout=8s
     - --log-level=INFO
     - --metric-host-txn-latency=0.1:60.0:0.1
     - --metric-zkproof-txn-latency=0.1:60.0:0.1
