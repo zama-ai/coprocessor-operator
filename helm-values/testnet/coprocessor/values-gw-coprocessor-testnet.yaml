@@ -154,7 +154,7 @@ txSender:
     - --add-ciphertexts-max-retries=2147483647
     - --error-sleep-initial-secs=1
     - --error-sleep-max-secs=4
-    - --send-txn-sync-timeout-secs=4
+    - --send-txn-sync-timeout-secs=6
     - --review-after-unlimited-retries=30
     - --gas-limit-overprovision-percent=300
     - --graceful-shutdown-timeout=8s
