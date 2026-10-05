@@ -1,4 +1,4 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.12
 
 commonConfig:
   databaseUser:
