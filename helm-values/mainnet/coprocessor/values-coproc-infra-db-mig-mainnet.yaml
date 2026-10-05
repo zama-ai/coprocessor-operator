@@ -46,7 +46,7 @@ dbMigration:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/db-migration
-    tag: v0.13.0
+    tag: v0.13.7
   resources:
     requests:
       cpu: 2
