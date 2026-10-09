@@ -1,8 +1,6 @@
-# Coprocessor Helm chart: 0.13.25
+# Coprocessor Helm chart: 0.13.3
 
 commonConfig:
-  # Preserve the environment expected by the v0.13.0 worker images.
-  forceLegacyServerKey: false
   databaseUser:
     valueFrom:
       secretKeyRef:
@@ -43,7 +41,6 @@ tfheWorker:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
     tag: v0.13.0
   replicas: 1
-  # Requires a coprocessor chart that omits Deployment.spec.replicas when HPA is enabled.
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
     enabled: true
@@ -90,10 +87,10 @@ tfheWorker:
     enabled: true
   resources:
     requests:
-      cpu: 88
+      cpu: 180
       memory: 128Gi
     limits:
-      cpu: 88
+      cpu: 180
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -121,7 +118,6 @@ zkProofWorker:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/zkproof-worker
     tag: v0.13.0
   replicas: 1
-  # Requires a coprocessor chart that omits Deployment.spec.replicas when HPA is enabled.
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
     enabled: true
@@ -163,10 +159,10 @@ zkProofWorker:
     enabled: true
   resources:
     requests:
-      cpu: 28
+      cpu: 40
       memory: 128Gi
     limits:
-      cpu: 28
+      cpu: 40
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -194,7 +190,6 @@ snsWorker:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
     tag: v0.13.0
   replicas: 1
-  # Requires a coprocessor chart that omits Deployment.spec.replicas when HPA is enabled.
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
     enabled: true
@@ -219,8 +214,6 @@ snsWorker:
             periodSeconds: 300
   serviceAccountName: sns-worker
   config:
-    # Omit the newer chart's S3 migration environment variables.
-    s3Migration: null
     s3BucketName:
       valueFrom:
         configMapKeyRef:
@@ -231,11 +224,7 @@ snsWorker:
   disabledArgs:
     - metrics-addr
     - health-check-port
-    - bucket-name
   extraArgs:
-    # v0.13.0 SNS workers require the two legacy bucket arguments.
-    - --bucket-name-ct64=$(S3_BUCKET_NAME)
-    - --bucket-name-ct128=$(S3_BUCKET_NAME)
     - --pg-listen-channels
     - event_pbs_computations
     - event_ciphertext_computed
@@ -261,10 +250,10 @@ snsWorker:
     enabled: true
   resources:
     requests:
-      cpu: 36
+      cpu: 140
       memory: 128Gi
     limits:
-      cpu: 36
+      cpu: 140
       memory: 128Gi
   affinity:
     nodeAffinity:
