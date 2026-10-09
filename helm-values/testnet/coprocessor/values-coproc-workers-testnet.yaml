@@ -41,6 +41,28 @@ tfheWorker:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
     tag: v0.13.0
   replicas: 1
+  # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 55
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        selectPolicy: Max
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleDown:
+        # Retain the highest replica recommendation from the last 30 minutes.
+        stabilizationWindowSeconds: 1800
+        selectPolicy: Min
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 300
   tracing:
     service: testnet-coprocessor-tfhe-worker
   disabledArgs:
@@ -65,10 +87,10 @@ tfheWorker:
     enabled: true
   resources:
     requests:
-      cpu: 88
+      cpu: 180
       memory: 128Gi
     limits:
-      cpu: 88
+      cpu: 180
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -96,6 +118,28 @@ zkProofWorker:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/zkproof-worker
     tag: v0.13.0
   replicas: 1
+  # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 55
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        selectPolicy: Max
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleDown:
+        # Retain the highest replica recommendation from the last 30 minutes.
+        stabilizationWindowSeconds: 1800
+        selectPolicy: Min
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 300
   tracing:
     service: testnet-coprocessor-zkpok-worker
   disabledArgs:
@@ -115,10 +159,10 @@ zkProofWorker:
     enabled: true
   resources:
     requests:
-      cpu: 28
+      cpu: 40
       memory: 128Gi
     limits:
-      cpu: 28
+      cpu: 40
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -146,6 +190,28 @@ snsWorker:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
     tag: v0.13.0
   replicas: 1
+  # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 55
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        selectPolicy: Max
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+      scaleDown:
+        # Retain the highest replica recommendation from the last 30 minutes.
+        stabilizationWindowSeconds: 1800
+        selectPolicy: Min
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 300
   serviceAccountName: sns-worker
   config:
     s3BucketName:
@@ -184,10 +250,10 @@ snsWorker:
     enabled: true
   resources:
     requests:
-      cpu: 36
+      cpu: 140
       memory: 128Gi
     limits:
-      cpu: 36
+      cpu: 140
       memory: 128Gi
   affinity:
     nodeAffinity:
