@@ -40,12 +40,12 @@ tfheWorker:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
     tag: v0.13.0
-  replicas: 1
+  replicas: 4
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
     enabled: true
-    minReplicas: 1
-    maxReplicas: 4
+    minReplicas: 4
+    maxReplicas: 5
     targetCPUUtilizationPercentage: 55
     behavior:
       scaleUp:
@@ -56,8 +56,8 @@ tfheWorker:
             value: 1
             periodSeconds: 60
       scaleDown:
-        # Retain the highest replica recommendation from the last 30 minutes.
-        stabilizationWindowSeconds: 1800
+        # Retain the highest replica recommendation from the last hour.
+        stabilizationWindowSeconds: 3600
         selectPolicy: Min
         policies:
           - type: Pods
@@ -87,10 +87,10 @@ tfheWorker:
     enabled: true
   resources:
     requests:
-      cpu: 180
+      cpu: 45
       memory: 128Gi
     limits:
-      cpu: 180
+      cpu: 45
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -133,8 +133,8 @@ zkProofWorker:
             value: 1
             periodSeconds: 60
       scaleDown:
-        # Retain the highest replica recommendation from the last 30 minutes.
-        stabilizationWindowSeconds: 1800
+        # Retain the highest replica recommendation from the last hour.
+        stabilizationWindowSeconds: 3600
         selectPolicy: Min
         policies:
           - type: Pods
@@ -159,10 +159,10 @@ zkProofWorker:
     enabled: true
   resources:
     requests:
-      cpu: 40
+      cpu: 32
       memory: 128Gi
     limits:
-      cpu: 40
+      cpu: 32
       memory: 128Gi
   affinity:
     nodeAffinity:
@@ -189,11 +189,11 @@ snsWorker:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
     tag: v0.13.0
-  replicas: 1
+  replicas: 2
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
     enabled: true
-    minReplicas: 1
+    minReplicas: 2
     maxReplicas: 4
     targetCPUUtilizationPercentage: 55
     behavior:
@@ -205,8 +205,8 @@ snsWorker:
             value: 1
             periodSeconds: 60
       scaleDown:
-        # Retain the highest replica recommendation from the last 30 minutes.
-        stabilizationWindowSeconds: 1800
+        # Retain the highest replica recommendation from the last hour.
+        stabilizationWindowSeconds: 3600
         selectPolicy: Min
         policies:
           - type: Pods
@@ -250,10 +250,10 @@ snsWorker:
     enabled: true
   resources:
     requests:
-      cpu: 140
+      cpu: 60
       memory: 128Gi
     limits:
-      cpu: 140
+      cpu: 60
       memory: 128Gi
   affinity:
     nodeAffinity:
