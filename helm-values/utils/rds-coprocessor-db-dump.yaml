@@ -41,6 +41,7 @@ initContainers:
         : "${DATABASE_USERNAME:?DATABASE_USERNAME must be set}"
         : "${PGPASSWORD:?PGPASSWORD must be set}"
         : "${HOST_CHAIN_ID:?HOST_CHAIN_ID must be set}"
+        : "${POLYGON_CHAIN_ID:?POLYGON_CHAIN_ID must be set}"
 
         export PGSSLMODE="$DATABASE_SSLMODE"
         DATABASE_CONNECTION="host=$DATABASE_HOST port=$DATABASE_PORT user=$DATABASE_USERNAME dbname=$DATABASE_NAME sslmode=$DATABASE_SSLMODE"
@@ -71,10 +72,12 @@ initContainers:
 
         echo ""
         echo "Block heights — record these in rds-coprocessor-db-bootstrap.yaml"
-        echo "(REPLAY_START_BLOCK / GATEWAY_REPLAY_START):"
+        echo "(Ethereum height / gateway height / POLYGON_SEED_START_BLOCK):"
+        echo "Polygon uses the saved poller cursor directly (no +1)."
         psql "$DATABASE_CONNECTION" \
           -v ON_ERROR_STOP=1 \
-          -v host_chain_id="$HOST_CHAIN_ID" <<'EOSQL'
+          -v host_chain_id="$HOST_CHAIN_ID" \
+          -v polygon_chain_id="$POLYGON_CHAIN_ID" <<'EOSQL'
 
         SELECT
           (
@@ -86,7 +89,12 @@ initContainers:
             SELECT last_block_num
             FROM gw_listener_last_block
             WHERE dummy_id = true
-          ) AS gw_listener_last_block_height;
+          ) AS gw_listener_last_block_height,
+          (
+            SELECT last_caught_up_block
+            FROM public.host_listener_poller_state
+            WHERE chain_id = :'polygon_chain_id'
+          ) AS polygon_seed_start_block;
 
         EOSQL
 
@@ -123,6 +131,8 @@ initContainers:
         value: "require"
       - name: HOST_CHAIN_ID
         value: "" # CHANGE ME: Ethereum host-chain ID (for example, 11155111 or 1)
+      - name: POLYGON_CHAIN_ID
+        value: "" # CHANGE ME: Polygon chain ID (80002 for Amoy, 137 for mainnet)
       - name: DATABASE_USERNAME
         valueFrom:
           secretKeyRef:
