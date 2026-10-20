@@ -8,7 +8,7 @@ This chart renders a single Kubernetes Job gated by `job.enabled`. It is designe
 
 Current operations:
 
-* **coprocessor-db-user-setup** — creates/updates the `coprocessor_user` and `postgres_exporter` roles with correct grants
+* **coprocessor-db-user-setup**: creates/updates the `coprocessor_user`, `postgres_exporter` and `sql_exporter` roles with correct grants, and the IAM-authenticated `operator_check` role used by coprocessor-operator-check
 
 Planned operations (disabled, for future releases):
 

@@ -1,9 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: coprocessor-operator-check-infra-config
+  name: {{ include "coprocessor-operator-check.jobName" (dict "context" . "component" "infra-config") }}
   labels:
     app: coprocessor-operator-check
+    {{- include "coprocessor-operator-check.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": "pre-install,pre-upgrade"
     "helm.sh/hook-weight": "0"
@@ -14,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        app: coprocessor-operator-check
+        {{- include "coprocessor-operator-check.podLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -46,9 +47,7 @@ spec:
             - -c
             - |
               echo "{{ .Chart.Name }}:{{ .Chart.Version }}"
-              (
-              {{- .Values.checks.k8s.script | nindent 14 }}
-              ) || echo "k8s-check exited with error"
+              {{- include "coprocessor-operator-check.runCheck" (dict "name" "k8s-check" "script" .Values.checks.k8s.script) | nindent 14 }}
         - name: aws-check
           image: {{ .Values.kubeUtils.image.repository }}:{{ .Values.kubeUtils.image.tag }}
           imagePullPolicy: Always
@@ -60,9 +59,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              (
-              {{- .Values.checks.aws.script | nindent 14 }}
-              ) || echo "aws-check exited with error"
+              {{- include "coprocessor-operator-check.runCheck" (dict "name" "aws-check" "script" .Values.checks.aws.script) | nindent 14 }}
           env:
             - name: STORAGE_HOSTNAME
               value: {{ .Values.checks.aws.storageHostname }}
@@ -77,16 +74,16 @@ spec:
             - /bin/sh
             - -c
             - |
-              (
-              {{- .Values.checks.kms.script | nindent 14 }}
-              ) || echo "kms-check exited with error"
+              {{- include "coprocessor-operator-check.runCheck" (dict "name" "kms-check" "script" .Values.checks.kms.script) | nindent 14 }}
           env:
             - name: AWS_KMS_KEY_ID
               valueFrom:
                 configMapKeyRef:
-                  name: db-admin-config
+                  name: {{ .Values.config.name }}
                   key: "AWS_KMS_KEY_ID"
-        - name: fetch-rds-secret
+        # IAM database authentication token (valid 15 minutes) for the CONNECT-only
+        # check role: the RDS master secret is never read.
+        - name: rds-iam-token
           image: {{ .Values.awsCli.image.repository }}:{{ .Values.awsCli.image.tag }}
           imagePullPolicy: Always
           {{- with .Values.securityContext }}
@@ -97,17 +94,15 @@ spec:
             - /bin/sh
             - -c
             - |
-              aws secretsmanager get-secret-value \
-                --secret-id "$RDS_ADMIN_SECRET_ID" \
-                --query SecretString \
-                --output text > /shared/rds-master.json \
-                || echo "fetch-rds-secret exited with error"
-          env:
-            - name: RDS_ADMIN_SECRET_ID
-              valueFrom:
-                configMapKeyRef:
-                  name: db-admin-config
-                  key: "RDS_ADMIN_SECRET_ID"
+              aws rds generate-db-auth-token \
+                --hostname "$DATABASE_ADDRESS" \
+                --port "$DATABASE_PORT" \
+                --region "$AWS_REGION" \
+                --username "$DATABASE_USER" > /shared/rds-token \
+                || { rc=$?; echo "rds-iam-token exited with error (exit code $rc)"; exit "$rc"; }
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.name }}
           volumeMounts:
             - name: shared-creds
               mountPath: /shared
@@ -123,10 +118,13 @@ spec:
             - /bin/sh
             - -c
             - |
-              (
-              {{- .Values.checks.db.script | nindent 14 }}
-              ) || echo "db-check exited with error"
-
+              {{- include "coprocessor-operator-check.runCheck" (dict "name" "db-check" "script" .Values.checks.db.script) | nindent 14 }}
+          env:
+            - name: DATABASE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.config.name }}
+                  key: "DATABASE_USER"
           volumeMounts:
             - name: shared-creds
               mountPath: /shared

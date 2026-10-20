@@ -3,65 +3,66 @@ checks:
     script: |
       FAILED=0
 
+      # Reports an object that could not be read, with the kubectl error so that an RBAC
+      # mismatch (Forbidden) is not mistaken for an absent object (NotFound)
+      missing() {
+        echo "  ✗ $1  <-- MISSING"
+        echo "      $2"
+        FAILED=$((FAILED + 1))
+      }
+
       check_ns() {
-        if kubectl get namespace "$1" &>/dev/null; then
+        if OUT=$(kubectl get namespace "$1" -o name 2>&1); then
           echo "  ✓ namespace/$1"
         else
-          echo "  ✗ namespace/$1  <-- MISSING"
-          FAILED=$((FAILED + 1))
+          missing "namespace/$1" "$OUT"
         fi
       }
 
+      # Usage: check_secret <name> <namespace>
       check_secret() {
-        local name=$1 namespace=$2
-        if kubectl get secret "$name" --namespace "$namespace" &>/dev/null; then
-          echo "  ✓ $namespace/$name"
+        if OUT=$(kubectl get secret "$1" --namespace "$2" -o name 2>&1); then
+          echo "  ✓ $2/$1"
         else
-          echo "  ✗ $namespace/$name  <-- MISSING"
-          FAILED=$((FAILED + 1))
+          missing "$2/$1" "$OUT"
         fi
       }
 
+      # Usage: check_externalname_svc <name> <namespace>
       check_externalname_svc() {
-        local name=$1 namespace=$2
-        if kubectl get service "$name" --namespace "$namespace" &>/dev/null; then
-          SVC_TYPE=$(kubectl get service "$name" --namespace "$namespace" -o jsonpath='{.spec.type}')
+        if OUT=$(kubectl get service "$1" --namespace "$2" -o jsonpath='{.spec.type} {.spec.externalName}' 2>&1); then
+          SVC_TYPE=${OUT%% *}
           if [ "$SVC_TYPE" = "ExternalName" ]; then
-            HOSTNAME=$(kubectl get service "$name" --namespace "$namespace" -o jsonpath='{.spec.externalName}')
-            echo "  ✓ $namespace/$name (ExternalName → $HOSTNAME)"
+            echo "  ✓ $2/$1 (ExternalName → ${OUT#* })"
           else
-            echo "  ✗ $namespace/$name exists but is type $SVC_TYPE, expected ExternalName"
+            echo "  ✗ $2/$1 exists but is type $SVC_TYPE, expected ExternalName"
             FAILED=$((FAILED + 1))
           fi
         else
-          echo "  ✗ $namespace/$name  <-- MISSING"
-          FAILED=$((FAILED + 1))
+          missing "$2/$1" "$OUT"
         fi
       }
 
+      # Usage: check_configmap_key <name> <namespace> <key>
       check_configmap_key() {
-        local name=$1 namespace=$2 key=$3
-        if kubectl get configmap "$name" --namespace "$namespace" &>/dev/null; then
-          VALUE=$(kubectl get configmap "$name" --namespace "$namespace" -o jsonpath="{.data.$key}")
-          if [ -n "$VALUE" ]; then
-            echo "  ✓ $namespace/$name[$key]"
+        if OUT=$(kubectl get configmap "$1" --namespace "$2" -o jsonpath="{.data.$3}" 2>&1); then
+          if [ -n "$OUT" ]; then
+            echo "  ✓ $2/$1[$3]"
           else
-            echo "  ✗ $namespace/$name exists but key '$key' is missing or empty"
+            echo "  ✗ $2/$1 exists but key '$3' is missing or empty"
             FAILED=$((FAILED + 1))
           fi
         else
-          echo "  ✗ $namespace/$name  <-- MISSING"
-          FAILED=$((FAILED + 1))
+          missing "$2/$1" "$OUT"
         fi
       }
 
+      # Usage: check_configmap <name> <namespace>
       check_configmap() {
-        local name=$1 namespace=$2
-        if kubectl get configmap "$name" --namespace "$namespace" &>/dev/null; then
-          echo "  ✓ $namespace/$name"
+        if OUT=$(kubectl get configmap "$1" --namespace "$2" -o name 2>&1); then
+          echo "  ✓ $2/$1"
         else
-          echo "  ✗ $namespace/$name  <-- MISSING"
-          FAILED=$((FAILED + 1))
+          missing "$2/$1" "$OUT"
         fi
       }
 
@@ -102,7 +103,8 @@ checks:
       check_configmap gw-sc-addresses gw-blockchain
 
       if [ "$FAILED" -gt 0 ]; then
-        echo "  k8s-check FAILED: $FAILED check(s) — ensure Terraform has run and secrets-bootstrap.sh has been executed"
+        echo "  k8s-check FAILED: $FAILED check(s). Ensure Terraform has run and secrets-bootstrap.sh has been executed."
+        echo "  Forbidden means the ServiceAccount cannot read the object: add it to service_accounts.operator_check.resources in Terraform."
         echo "└─────────────────────────────────────────────────"
         exit 1
       fi
@@ -140,7 +142,13 @@ checks:
       echo "├─────────────────────────────────────────────────"
 
       echo " -- tx-sender KMS key (Ethereum address) --"
-      cast wallet address --aws
+      if ! ADDRESS=$(cast wallet address --aws 2>&1); then
+        echo "  ✗ $ADDRESS"
+        echo "  kms-check FAILED: cannot read the public key of $AWS_KMS_KEY_ID"
+        echo "└─────────────────────────────────────────────────"
+        exit 1
+      fi
+      echo "  ✓ $ADDRESS"
 
       echo "  kms-check passed"
       echo "└─────────────────────────────────────────────────"
@@ -151,26 +159,36 @@ checks:
       echo "│ db-check"
       echo "├─────────────────────────────────────────────────"
 
-      MASTER_USER=$(jq -r '.username' /shared/rds-master.json)
-      MASTER_PASS=$(jq -r '.password' /shared/rds-master.json)
-      export PGPASSWORD="$MASTER_PASS"
+      # IAM authentication token from rds-iam-token, for a CONNECT-only role:
+      # every query below only reads catalogs readable by any role.
+      PGPASSWORD=$(cat /shared/rds-token)
+      export PGPASSWORD
 
-      CONN="host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$MASTER_USER dbname=coprocessor sslmode=require"
+      CONN="host=coprocessor-database.coproc.svc.cluster.local port=5432 user=$DATABASE_USER dbname=coprocessor sslmode=require"
+
+      # Fails the check on a connection, authentication or SQL error
+      query() {
+        if ! psql "$CONN" -c "$1"; then
+          echo "  db-check FAILED"
+          echo "└─────────────────────────────────────────────────"
+          exit 1
+        fi
+      }
 
       echo " -- Roles (excluding system rds_*/pg_*) --"
-      psql "$CONN" -c "SELECT rolname, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname NOT LIKE 'rds_%' AND rolname NOT LIKE 'pg_%' ORDER BY rolname;"
+      query "SELECT rolname, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname NOT LIKE 'rds_%' AND rolname NOT LIKE 'pg_%' ORDER BY rolname;"
 
       echo " -- Role memberships (non-system) --"
-      psql "$CONN" -c "SELECT m.rolname AS role, p.rolname AS member_of FROM pg_auth_members am JOIN pg_roles m ON am.member = m.oid JOIN pg_roles p ON am.roleid = p.oid WHERE m.rolname NOT LIKE 'rds_%' AND m.rolname NOT LIKE 'pg_%' ORDER BY m.rolname, p.rolname;"
+      query "SELECT m.rolname AS role, p.rolname AS member_of FROM pg_auth_members am JOIN pg_roles m ON am.member = m.oid JOIN pg_roles p ON am.roleid = p.oid WHERE m.rolname NOT LIKE 'rds_%' AND m.rolname NOT LIKE 'pg_%' ORDER BY m.rolname, p.rolname;"
 
       echo " -- Schema ownership (public) --"
-      psql "$CONN" -c "SELECT schema_name, schema_owner FROM information_schema.schemata WHERE schema_name = 'public';"
+      query "SELECT nspname AS schema_name, pg_get_userbyid(nspowner) AS schema_owner FROM pg_namespace WHERE nspname = 'public';"
 
       echo " -- Tables in public (owner) --"
-      psql "$CONN" -c "SELECT tablename, tableowner FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
+      query "SELECT tablename, tableowner FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
 
       echo " -- Default privileges (pg_default_acl) --"
-      psql "$CONN" -c "SELECT pg_get_userbyid(d.defaclrole) AS for_role, n.nspname AS schema, d.defaclobjtype AS objtype, d.defaclacl AS acl FROM pg_default_acl d JOIN pg_namespace n ON d.defaclnamespace = n.oid ORDER BY for_role, schema;"
+      query "SELECT pg_get_userbyid(d.defaclrole) AS for_role, n.nspname AS schema, d.defaclobjtype AS objtype, d.defaclacl AS acl FROM pg_default_acl d JOIN pg_namespace n ON d.defaclnamespace = n.oid ORDER BY for_role, schema;"
 
       echo "  db-check passed"
       echo "└─────────────────────────────────────────────────"
@@ -222,8 +240,14 @@ imagePullSecrets:
 nameOverride: ""
 fullnameOverride: ""
 
+# ConfigMap published by the same module: AWS region, KMS key and database address, port and user
+config:
+  name: "coprocessor-operator-check"
+
+# Least privilege service account running the checks, created with its IRSA role and RBAC by the
+# terraform-coprocessor-modules k8s-coprocessor-deps module (service_accounts.operator_check)
 serviceAccount:
-  name: "db-admin"
+  name: "coprocessor-operator-check"
 
 nodeSelector: {}
 tolerations: []
