@@ -1,0 +1,2 @@
+# Require Infra DevOps ownership for every path, including this file and CI/CD.
+* @zama-ai/infra-devops
