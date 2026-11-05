@@ -1,6 +1,8 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.29 
+# Testnet promotion target: v0.14.5; see README.md before rollout.
 
 commonConfig:
+  canonicalProtocolConfigChainId: "11155111"
   databaseUser:
     valueFrom:
       secretKeyRef:
@@ -21,6 +23,11 @@ commonConfig:
     enabled: true
     endpoint: "http://k8s-monitoring-alloy-receiver.monitoring.svc.cluster.local:4317"
 
+bnbContractConfigMap:
+  enabled: false # Managed by the db-migration release in coproc.
+  name: bnb-sc-addresses
+  network: testnet
+
 chains:
   - name: sepolia
     chainId: "11155111"
@@ -28,18 +35,32 @@ chains:
       configMapKeyRef:
         name: eth-sc-addresses
         key: acl.address
+    protocolConfigContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: protocol_config.address
   - name: polygonAmoy
     chainId: "80002"
     aclContractAddressValueFrom:
       configMapKeyRef:
         name: polygon-sc-addresses
         key: acl.address
+    protocolConfigContractAddressValueFrom:
+      configMapKeyRef:
+        name: polygon-sc-addresses
+        key: protocol_config.address
+  - name: bnbTestnet
+    chainId: "97"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: bnb-sc-addresses
+        key: acl.address
 
 tfheWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
-    tag: v0.13.8
+    tag: v0.14.5
   replicas: 4
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
@@ -116,7 +137,7 @@ zkProofWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/zkproof-worker
-    tag: v0.13.8
+    tag: v0.14.5
   replicas: 1
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
@@ -188,7 +209,7 @@ snsWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
-    tag: v0.13.8
+    tag: v0.14.5
   replicas: 2
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
@@ -224,7 +245,10 @@ snsWorker:
   disabledArgs:
     - metrics-addr
     - health-check-port
+    - bucket-name
   extraArgs:
+    - --bucket-name-ct64=$(S3_BUCKET_NAME)
+    - --bucket-name-ct128=$(S3_BUCKET_NAME)
     - --pg-listen-channels
     - event_pbs_computations
     - event_ciphertext_computed
@@ -244,6 +268,15 @@ snsWorker:
     - --cleanup-interval=1000000s
     - --liveness-threshold=70s
     - --log-level=INFO
+    - --s3-migration=concurrent
+    - --s3-migration-max-retries=120
+  wallet:
+    enabled: true
+    awsKms:
+      enabled: true
+      configmap:
+        name: coprocessor-sns-worker
+        key: AWS_KEY_ID
   ports:
     metrics: "9100"
   serviceMonitor:

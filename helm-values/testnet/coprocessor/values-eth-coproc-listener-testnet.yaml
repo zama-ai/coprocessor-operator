@@ -1,6 +1,20 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.29 
+# Testnet promotion target: v0.14.5; see README.md before rollout.
 
 commonConfig:
+  canonicalProtocolConfigChainId: "11155111"
+  env:
+    # Agree this chain-specific height across operators before rollout.
+    - name: FHEVM_BRANCH_ACTIVATION_BLOCK
+      valueFrom:
+        configMapKeyRef:
+          name: coprocessor-config
+          key: ETH_FHEVM_BRANCH_ACTIVATION_BLOCK
+    - name: CONFIDENTIAL_BRIDGE_ADDRESS
+      valueFrom:
+        configMapKeyRef:
+          name: eth-sc-addresses
+          key: confidential_bridge.address
   databaseUser:
     valueFrom:
       secretKeyRef:
@@ -29,7 +43,7 @@ hostContractConfigMap:
 hostListenerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
+    tag: v0.14.5
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener
@@ -42,6 +56,7 @@ hostListenerShared:
     - --reorg-maximum-duration-in-blocks=50
     - --log-level=INFO
     - --dependence-cross-block
+    - --confidential-bridge-address=$(CONFIDENTIAL_BRIDGE_ADDRESS)
     - --dependent-ops-max-per-chain=0
   ports:
     metrics: "9100"
@@ -77,13 +92,14 @@ hostListenerShared:
 hostListenerPollerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
+    tag: v0.14.5
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener-poller
   extraArgs:
     - --log-level=INFO
     - --dependence-cross-block
+    - --confidential-bridge-address=$(CONFIDENTIAL_BRIDGE_ADDRESS)
     - --finality-lag=15
   ports:
     metrics: "9100"
@@ -119,7 +135,7 @@ hostListenerPollerShared:
 hostListenerCatchupOnlyShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
+    tag: v0.14.5
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener-catchup-only
@@ -130,6 +146,7 @@ hostListenerCatchupOnlyShared:
     - --catchup-finalization-in-blocks=5
     - --log-level=INFO
     - --dependence-cross-block
+    - --confidential-bridge-address=$(CONFIDENTIAL_BRIDGE_ADDRESS)
     - --only-catchup-loop
     - --start-at-block=-250
     - --end-at-block=-15
@@ -188,6 +205,10 @@ chains:
       configMapKeyRef:
         name: eth-sc-addresses
         key: kms_generation.address
+    protocolConfigContractAddressValueFrom:
+      configMapKeyRef:
+        name: eth-sc-addresses
+        key: protocol_config.address
     hostListener:
       enabled: true
       useLegacyName: true
