@@ -155,7 +155,8 @@ hostListenerCatchupOnlyShared:
     - --log-level=INFO
     - --dependence-cross-block
     - --confidential-bridge-address=$(CONFIDENTIAL_BRIDGE_ADDRESS)
-    - --start-at-block=40996500
+    # 2026-10-28 00:00 CET, before bridge preparation and the v0.14.4 upgrades.
+    - --start-at-block=51319435
   ports:
     metrics: "9100"
     healthcheck: "8080"
