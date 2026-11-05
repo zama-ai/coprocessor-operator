@@ -4,7 +4,6 @@
 commonConfig:
   canonicalProtocolConfigChainId: "11155111"
   env:
-    # Agree this chain-specific height across operators before rollout.
     - name: FHEVM_BRANCH_ACTIVATION_BLOCK
       valueFrom:
         configMapKeyRef:
