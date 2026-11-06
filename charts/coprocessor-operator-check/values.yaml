@@ -1,5 +1,30 @@
 checks:
   k8s:
+    # Only these named Secrets can be read by the preflight checker.
+    # Extend this map when a custom check script needs additional Secret access.
+    secretNamesByNamespace:
+      coproc:
+        - coprocessor-user-rds-credentials
+        - registry-credentials
+      coproc-admin:
+        - coprocessor-user-rds-credentials
+        - registry-credentials
+        - postgres-exporter-rds-credentials
+        - sql-exporter-rds-credentials
+      gw-blockchain:
+        - coprocessor-user-rds-credentials
+        - registry-credentials
+      eth-blockchain:
+        - coprocessor-user-rds-credentials
+        - registry-credentials
+      polygon-blockchain:
+        - coprocessor-user-rds-credentials
+        - registry-credentials
+        - rpc-credentials
+      monitoring:
+        - postgres-exporter-config
+        - sql-exporter-config
+        - grafana-cloud-credentials
     script: |
       FAILED=0
 
