@@ -10,15 +10,20 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   HELM_VERSION: v4.1.4
 jobs:
   helm-release:
+    name: helm-release
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      packages: write
+      packages: write # Publish Helm charts to GitHub Container Registry.
     environment: main
     steps:
       - name: Checkout

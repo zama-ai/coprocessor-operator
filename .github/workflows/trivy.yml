@@ -10,13 +10,17 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   trivy:
     name: Trivy (${{ matrix.scan-type }})
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      security-events: write
+      security-events: write # Upload Trivy SARIF reports to GitHub code scanning.
     strategy:
       fail-fast: false
       matrix:

@@ -47,6 +47,7 @@ Must be set in your values file (e.g. `helm-values/utils/coprocessor-operator-ch
 |-----------|-------------|---------|
 | `job.ttlSecondsAfterFinished` | Seconds before the completed Job is deleted | `300` |
 | `serviceAccount.name` | ServiceAccount to run the job as | `db-admin` |
+| `checks.k8s.secretNamesByNamespace` | Namespace-to-Secret-name map allowed for the checker; extend when customizing Secret checks | Names used by the default script |
 | `securityContext` | Container-level security context applied to all containers | `capabilities.drop: [ALL]` |
 | `podSecurityContext` | Pod-level security context | `{}` |
 | `imagePullSecrets` | Secrets for pulling images from the private registry | `[registry-credentials]` |
@@ -73,7 +74,8 @@ checks:
 
 * The Job runs with `capabilities.drop: [ALL]` on all containers by default
 * RDS credentials fetched from Secrets Manager are written to an `emptyDir` volume backed by memory (`medium: Memory`), never touching disk
-* The ClusterRole is scoped to only `get`/`list` on `namespaces`, `secrets`, `services`, and `configmaps` — no wildcard access
+* The ClusterRole allows only `get` on `namespaces`, `services`, and `configmaps`; it grants no Secret access
+* Namespace Roles allow only `get` on the specific Secrets listed in `checks.k8s.secretNamesByNamespace`; Secret listing and access to other Secret names are not granted
 * RBAC resources are deleted on hook success (`hook-delete-policy: before-hook-creation,hook-succeeded`)
 
 ## Values

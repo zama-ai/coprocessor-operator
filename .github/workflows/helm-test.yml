@@ -10,11 +10,16 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   HELM_VERSION: v4.1.4
 
 jobs:
   helm-test:
+    name: helm-test
     runs-on: ubuntu-24.04
     permissions:
       contents: read
