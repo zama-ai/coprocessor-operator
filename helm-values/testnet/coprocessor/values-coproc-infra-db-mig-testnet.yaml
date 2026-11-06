@@ -1,4 +1,5 @@
-# Coprocessor Helm chart: 0.13.12
+# Coprocessor Helm chart: 0.13.29
+# Testnet promotion target: v0.14.5; see README.md before rollout.
 
 commonConfig:
   databaseUser:
@@ -28,6 +29,11 @@ polygonContractConfigMap:
   name: polygon-sc-addresses
   network: testnet
 
+bnbContractConfigMap:
+  enabled: true
+  name: bnb-sc-addresses
+  network: testnet
+
 chains:
   - name: sepolia
     chainId: "11155111"
@@ -41,12 +47,18 @@ chains:
       configMapKeyRef:
         name: polygon-sc-addresses
         key: acl.address
+  - name: bnbTestnet
+    chainId: "97"
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: bnb-sc-addresses
+        key: acl.address
 
 dbMigration:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/db-migration
-    tag: v0.13.7
+    tag: "v0.14.5@sha256:a4f78a78090c93ee53fbec22fd53fc4645c5a9ddb70656693afe9b5b2b1fe43a"
   resources:
     requests:
       cpu: 2

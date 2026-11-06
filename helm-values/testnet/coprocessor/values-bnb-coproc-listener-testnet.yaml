@@ -1,0 +1,161 @@
+# Coprocessor Helm chart: 0.13.29 
+# Testnet promotion target: v0.14.5; see README.md before rollout.
+
+commonConfig:
+  canonicalProtocolConfigChainId: "11155111"
+  databaseUser:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: username
+  databasePassword:
+    valueFrom:
+      secretKeyRef:
+        name: coprocessor-user-rds-credentials
+        key: password
+  databaseEndpoint:
+    valueFrom:
+      configMapKeyRef:
+        name: coprocessor-config
+        key: DATABASE_ENDPOINT
+  databaseUrl: "postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_ENDPOINT)/coprocessor"
+  tracing:
+    enabled: true
+    endpoint: "http://k8s-monitoring-alloy-receiver.monitoring.svc.cluster.local:4317"
+
+bnbContractConfigMap:
+  enabled: true
+  name: bnb-sc-addresses
+  network: testnet
+
+hostListenerShared:
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
+    tag: "v0.14.5@sha256:8fc7015e707d9fc3149c9ff4843e15e1b94775a9cd0990de093a8799139149e5"
+  replicas: 1
+  args:
+    serviceName: testnet-coprocessor-host-listener-bnb
+  tracing:
+    service: testnet-coprocessor-host-listener-bnb
+  extraArgs:
+    - --initial-block-time=3
+    - --catchup-finalization-in-blocks=20
+    - --dependence-cache-size=10000
+    - --reorg-maximum-duration-in-blocks=50
+    - --log-level=INFO
+    - --dependence-cross-block
+    - --dependent-ops-max-per-chain=0
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+hostListenerPollerShared:
+  image:
+    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
+    tag: "v0.14.5@sha256:8fc7015e707d9fc3149c9ff4843e15e1b94775a9cd0990de093a8799139149e5"
+  replicas: 1
+  args:
+    serviceName: testnet-coprocessor-host-listener-poller-bnb
+  extraArgs:
+    - --log-level=INFO
+    - --dependence-cross-block
+    - --finality-lag=15
+    # 2026-11-02 04:12:12 UTC: 12h before SETUP_1-55 execution on Sepolia.
+    - --seed-start-block=140315373
+  ports:
+    metrics: "9100"
+  serviceMonitor:
+    enabled: true
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - zws-pool
+  tolerations:
+    - key: karpenter.sh/nodepool
+      effect: NoSchedule
+      operator: Equal
+      value: zws-pool
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+chains:
+  - name: bnb
+    chainId: "97"
+    wsUrlValueFrom:
+      secretKeyRef:
+        name: rpc-credentials
+        key: bnb-rpc-ws-url
+    httpUrlValueFrom:
+      secretKeyRef:
+        name: rpc-credentials
+        key: bnb-rpc-url
+    aclContractAddressValueFrom:
+      configMapKeyRef:
+        name: bnb-sc-addresses
+        key: acl.address
+    fhevmExecutorContractAddressValueFrom:
+      configMapKeyRef:
+        name: bnb-sc-addresses
+        key: fhevm_executor.address
+    kmsGenerationContractAddress: "0x0000000000000000000000000000000000000000"
+    hostListener:
+      enabled: true
+      useLegacyName: true
+    hostListenerPoller:
+      enabled: true
+      useLegacyName: true
+
+dbMigration:
+  enabled: false
+gwListener:
+  enabled: false
+tfheWorker:
+  enabled: false
+zkProofWorker:
+  enabled: false
+snsWorker:
+  enabled: false
+txSender:
+  enabled: false

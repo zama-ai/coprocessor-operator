@@ -5,8 +5,21 @@ set -euo pipefail
 #  Coprocessor Secret Bootstrap
 #
 #  Creates Kubernetes secrets required by the Coprocessor stack.
-#  RDS user passwords are generated automatically and stored only in K8s Secrets.
-#  Idempotent — safe to re-run.
+#  Can also be re-run to provision all missing secrets when onboarding a chain
+#  whose namespace and RPC provisioning are listed in this script (e.g., BNB).
+#  Add those entries first for a chain that is not yet listed.
+#
+#  During normal execution, missing coprocessor_user secrets are populated
+#  using the existing password from coproc, when available. The generated
+#  candidate password is used only when no source credential secret exists.
+#  Existing destination secrets are skipped, including existing RPC secrets.
+#  Registry/RPC credentials are read from the environment or hidden prompts
+#  when their destination secrets are missing.
+#
+#  RDS user passwords are stored only in K8s Secrets. Dry-run prints manifests
+#  containing generated candidate passwords; it does not reuse live passwords.
+#  Idempotent — safe to re-run. Namespace/configuration/networking prerequisites
+#  remain Terraform-managed, and contract-address ConfigMaps are Helm-managed.
 #
 #  Usage:
 #    ./secrets-bootstrap.sh            Apply secrets to the cluster
@@ -16,6 +29,7 @@ set -euo pipefail
 #    REGISTRY_USER, REGISTRY_PASS
 #    ETHEREUM_RPC_URL, ETHEREUM_RPC_WS_URL
 #    POLYGON_RPC_URL, POLYGON_RPC_WS_URL
+#    BNB_RPC_URL, BNB_RPC_WS_URL
 #    CONDUIT_RPC_URL, CONDUIT_RPC_WS_URL
 #    PROMETHEUS_USER, PROMETHEUS_PASS
 #    LOKI_USER, LOKI_PASS
@@ -107,7 +121,7 @@ if [[ "$DRY_RUN" == "false" ]]; then
   [[ "$CONFIRM" == "yes" ]] || { echo "  aborted — no changes made"; exit 1; }
 
   MISSING_NS=""
-  for NS in coproc coproc-admin monitoring gw-blockchain eth-blockchain polygon-blockchain kube-system karpenter; do
+  for NS in coproc coproc-admin monitoring gw-blockchain eth-blockchain polygon-blockchain bnb-blockchain kube-system karpenter; do
     kubectl get namespace "$NS" &>/dev/null || MISSING_NS="$MISSING_NS $NS"
   done
   if [[ -n "$MISSING_NS" ]]; then
@@ -121,7 +135,7 @@ fi
 #  RDS user passwords (auto-generated, skipped if already exist)
 # =============================================================================
 echo ""
-echo "[ 1/6 ] RDS user passwords"
+echo "[ 1/7 ] RDS user passwords"
 
 # ~40 char alphanumeric (32 random bytes base64-encoded, symbols stripped)
 gen_pass() { openssl rand -base64 32 | tr -d '/+='; }
@@ -131,7 +145,7 @@ POSTGRES_EXPORTER_PASS=$(gen_pass)
 SQL_EXPORTER_PASS=$(gen_pass)
 
 # coprocessor_user (fanned out to all coprocessor namespaces)
-COPROCESSOR_MISSING=$(missing_namespaces coprocessor-user-rds-credentials coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain)
+COPROCESSOR_MISSING=$(missing_namespaces coprocessor-user-rds-credentials coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain bnb-blockchain)
 if [[ -z "$COPROCESSOR_MISSING" ]]; then
   echo "  skipping — secret coprocessor-user-rds-credentials already exist"
 else
@@ -207,10 +221,10 @@ fi
 #  Registry credentials
 # =============================================================================
 echo ""
-echo "[ 2/6 ] Registry credentials"
+echo "[ 2/7 ] Registry credentials"
 echo "        (hub.zama.org service account credentials)"
 
-REGISTRY_MISSING=$(missing_namespaces registry-credentials coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain kube-system monitoring karpenter)
+REGISTRY_MISSING=$(missing_namespaces registry-credentials coproc coproc-admin gw-blockchain eth-blockchain polygon-blockchain bnb-blockchain kube-system monitoring karpenter)
 if [[ -z "$REGISTRY_MISSING" ]]; then
   echo "  skipping — secrets already exist"
 else
@@ -249,7 +263,7 @@ fi
 #  Grafana Cloud credentials
 # =============================================================================
 echo ""
-echo "[ 3/6 ] Grafana Cloud credentials"
+echo "[ 3/7 ] Grafana Cloud credentials"
 echo "        (Provided by Zama)"
 
 if [[ "$DRY_RUN" == "false" ]] && kubectl get secret grafana-cloud-credentials --namespace monitoring &>/dev/null; then
@@ -294,7 +308,7 @@ fi
 #  RPC credentials
 # =============================================================================
 echo ""
-echo "[ 4/6 ] RPC credentials"
+echo "[ 4/7 ] RPC credentials"
 echo "        (Ethereum RPC endpoints)"
 
 ETHEREUM_MISSING=$(missing_namespaces rpc-credentials eth-blockchain gw-blockchain coproc)
@@ -325,7 +339,7 @@ fi
 #  Polygon RPC credentials
 # =============================================================================
 echo ""
-echo "[ 5/6 ] Polygon RPC credentials"
+echo "[ 5/7 ] Polygon RPC credentials"
 echo "        (Polygon RPC endpoints)"
 
 POLYGON_MISSING=$(missing_namespaces rpc-credentials polygon-blockchain)
@@ -351,10 +365,39 @@ else
 fi
 
 # =============================================================================
+#  BNB RPC credentials
+# =============================================================================
+echo ""
+echo "[ 6/7 ] BNB RPC credentials"
+echo "        (BNB RPC endpoints)"
+
+BNB_MISSING=$(missing_namespaces rpc-credentials bnb-blockchain)
+if [[ -z "$BNB_MISSING" ]]; then
+  echo "  skipping — secrets already exist"
+else
+  echo ""
+  if [[ -z "${BNB_RPC_URL:-}" ]]; then
+    read -rsp "  BNB RPC URL:      " BNB_RPC_URL; echo
+  fi
+  if [[ -z "${BNB_RPC_WS_URL:-}" ]]; then
+    read -rsp "  BNB RPC WS URL:   " BNB_RPC_WS_URL; echo
+  fi
+
+  validate_rpc_url "BNB RPC URL"    "$BNB_RPC_URL"    https
+  validate_rpc_url "BNB RPC WS URL" "$BNB_RPC_WS_URL" wss
+
+  echo ""
+  echo "  rpc-credentials"
+  apply_secret rpc-credentials bnb-blockchain \
+    --from-literal=bnb-rpc-url="$BNB_RPC_URL" \
+    --from-literal=bnb-rpc-ws-url="$BNB_RPC_WS_URL"
+fi
+
+# =============================================================================
 #  Conduit credentials
 # =============================================================================
 echo ""
-echo "[ 6/6 ] Conduit credentials"
+echo "[ 7/7 ] Conduit credentials"
 echo "        (Conduit RPC endpoints)"
 
 CONDUIT_MISSING=$(missing_namespaces conduit-credentials gw-blockchain)
