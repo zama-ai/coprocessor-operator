@@ -31,7 +31,7 @@ bnbContractConfigMap:
 hostListenerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.14.5
+    tag: "v0.14.5@sha256:8fc7015e707d9fc3149c9ff4843e15e1b94775a9cd0990de093a8799139149e5"
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener-bnb
@@ -79,7 +79,7 @@ hostListenerShared:
 hostListenerPollerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.14.5
+    tag: "v0.14.5@sha256:8fc7015e707d9fc3149c9ff4843e15e1b94775a9cd0990de093a8799139149e5"
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener-poller-bnb

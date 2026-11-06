@@ -60,7 +60,7 @@ tfheWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tfhe-worker
-    tag: v0.14.5
+    tag: "v0.14.5@sha256:1212ab97b0f834ddaba90bb506f62cbbd692ef799eb718f5e28a459876bb1694"
   replicas: 4
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
@@ -137,7 +137,7 @@ zkProofWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/zkproof-worker
-    tag: v0.14.5
+    tag: "v0.14.5@sha256:3808a377136b5a967f84478552efb6916234b550484fde4d1cb387e52effa5b9"
   replicas: 1
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
@@ -209,7 +209,7 @@ snsWorker:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/sns-worker
-    tag: v0.14.5
+    tag: "v0.14.5@sha256:bd15fcdba4d114aa8129cbba86c738e7e46ac86bb67d54d61d029ec2a7f5ef01"
   replicas: 2
   # 55% target + default 10% tolerance: scale up above ~60.5%, down below ~49.5%.
   hpa:
