@@ -13,8 +13,9 @@ set -euo pipefail
 #  using the existing password from coproc, when available. The generated
 #  candidate password is used only when no source credential secret exists.
 #  Existing destination secrets are skipped, including existing RPC secrets.
-#  Registry/RPC credentials are read from the environment or hidden prompts
-#  when their destination secrets are missing.
+#  Missing registry secrets are copied from coproc when that source exists.
+#  First-time registry credentials and missing RPC credentials are read from
+#  the environment or hidden prompts.
 #
 #  RDS user passwords are stored only in K8s Secrets. Dry-run prints manifests
 #  containing generated candidate passwords; it does not reuse live passwords.
@@ -42,6 +43,7 @@ set -euo pipefail
 #  Prerequisites:
 #    - kubectl configured against the target cluster
 #    - openssl available (macOS/Linux default)
+#    - jq available when copying existing registry credentials
 #    - Namespaces already created (via Terraform)
 # =============================================================================
 
@@ -229,34 +231,53 @@ if [[ -z "$REGISTRY_MISSING" ]]; then
   echo "  skipping — secrets already exist"
 else
   echo ""
-  REGISTRY_SERVER="hub.zama.org"
-  if [[ -z "${REGISTRY_USER:-}" ]]; then
-    read -rsp "  Registry username:  " REGISTRY_USER; echo
-  fi
-  if [[ -z "${REGISTRY_PASS:-}" ]]; then
-    read -rsp "  Registry password:  " REGISTRY_PASS; echo
-  fi
-
-  echo ""
-  echo "  registry-credentials"
-  for NS in $REGISTRY_MISSING; do
-    if [[ "$DRY_RUN" == "true" ]]; then
-      kubectl create secret docker-registry registry-credentials \
-        --namespace "$NS" \
-        --docker-server="$REGISTRY_SERVER" \
-        --docker-username="$REGISTRY_USER" \
-        --docker-password="$REGISTRY_PASS" \
-        --dry-run=client -o yaml
-    else
-      kubectl create secret docker-registry registry-credentials \
-        --namespace "$NS" \
-        --docker-server="$REGISTRY_SERVER" \
-        --docker-username="$REGISTRY_USER" \
-        --docker-password="$REGISTRY_PASS" \
-        --dry-run=client -o yaml | kubectl apply -f - > /dev/null
-      echo "    ✓ $NS/registry-credentials"
+  if [[ "$DRY_RUN" == "false" ]] && kubectl get secret registry-credentials --namespace coproc &>/dev/null; then
+    command -v jq >/dev/null || { echo "  ✗ jq is required to copy registry credentials" >&2; exit 1; }
+    REGISTRY_SOURCE=$(kubectl get secret registry-credentials --namespace coproc -o json)
+    if ! jq -e '(.type == "kubernetes.io/dockerconfigjson" and .data[".dockerconfigjson"] != null) or
+                 (.type == "kubernetes.io/dockercfg" and .data[".dockercfg"] != null)' \
+        >/dev/null <<< "$REGISTRY_SOURCE"; then
+      echo "  ✗ coproc/registry-credentials is not a valid Docker registry Secret" >&2
+      exit 1
     fi
-  done
+
+    echo "  copying registry-credentials from coproc"
+    for NS in $REGISTRY_MISSING; do
+      jq -ce --arg ns "$NS" \
+        '{apiVersion:"v1", kind:"Secret", metadata:{name:"registry-credentials", namespace:$ns}, type:.type, data:.data}' \
+        <<< "$REGISTRY_SOURCE" | kubectl apply -f - > /dev/null
+      echo "    ✓ $NS/registry-credentials"
+    done
+  else
+    REGISTRY_SERVER="hub.zama.org"
+    if [[ -z "${REGISTRY_USER:-}" ]]; then
+      read -rsp "  Registry username:  " REGISTRY_USER; echo
+    fi
+    if [[ -z "${REGISTRY_PASS:-}" ]]; then
+      read -rsp "  Registry password:  " REGISTRY_PASS; echo
+    fi
+
+    echo ""
+    echo "  registry-credentials"
+    for NS in $REGISTRY_MISSING; do
+      if [[ "$DRY_RUN" == "true" ]]; then
+        kubectl create secret docker-registry registry-credentials \
+          --namespace "$NS" \
+          --docker-server="$REGISTRY_SERVER" \
+          --docker-username="$REGISTRY_USER" \
+          --docker-password="$REGISTRY_PASS" \
+          --dry-run=client -o yaml
+      else
+        kubectl create secret docker-registry registry-credentials \
+          --namespace "$NS" \
+          --docker-server="$REGISTRY_SERVER" \
+          --docker-username="$REGISTRY_USER" \
+          --docker-password="$REGISTRY_PASS" \
+          --dry-run=client -o yaml | kubectl apply -f - > /dev/null
+        echo "    ✓ $NS/registry-credentials"
+      fi
+    done
+  fi
 fi
 
 # =============================================================================
