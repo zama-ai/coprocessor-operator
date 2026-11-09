@@ -4,16 +4,15 @@ set -euo pipefail
 # =============================================================================
 #  New Blockchain Bootstrap
 #
-#  Copies the coprocessor_user RDS credentials and registry credentials secrets
-#  from the source namespace into one or more target namespaces.
+#  This script will be deprecated in a future release. New-chain secret
+#  provisioning is now owned by secrets-bootstrap.sh, which provisions missing
+#  database, registry and chain-specific RPC secrets. Add the new chain's
+#  namespace and RPC provisioning there before running it.
 #
-#  The coprocessor_user password is generated once by secrets-bootstrap.sh and
-#  stored only in K8s Secrets. When a new chain namespace is added to a live
-#  cluster, secrets-bootstrap.sh will NOT populate it (its RDS block is skipped
-#  once the source secret exists), and regenerating would produce a password
-#  that no longer matches the one already set in RDS. This script copies the
-#  existing secret instead, so the value stays consistent across namespaces.
-#  The registry credentials are copied so the new namespace can pull images.
+#  Retained for compatibility: copies the existing coprocessor_user RDS and
+#  registry credential secrets from coproc into the supplied target namespaces.
+#  secrets-bootstrap.sh also reuses the existing coprocessor_user password from
+#  coproc when populating missing destinations during normal execution.
 #  Idempotent — safe to re-run.
 #
 #  Usage:

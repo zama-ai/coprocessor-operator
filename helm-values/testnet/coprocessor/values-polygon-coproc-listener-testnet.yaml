@@ -1,6 +1,19 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.29 
+# Testnet promotion target: v0.14.5; see README.md before rollout.
 
 commonConfig:
+  canonicalProtocolConfigChainId: "11155111"
+  env:
+    - name: FHEVM_BRANCH_ACTIVATION_BLOCK
+      valueFrom:
+        configMapKeyRef:
+          name: coprocessor-config
+          key: POLYGON_FHEVM_BRANCH_ACTIVATION_BLOCK
+    - name: CONFIDENTIAL_BRIDGE_ADDRESS
+      valueFrom:
+        configMapKeyRef:
+          name: polygon-sc-addresses
+          key: confidential_bridge.address
   databaseUser:
     valueFrom:
       secretKeyRef:
@@ -29,7 +42,7 @@ polygonContractConfigMap:
 hostListenerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
+    tag: "v0.14.5@sha256:8fc7015e707d9fc3149c9ff4843e15e1b94775a9cd0990de093a8799139149e5"
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener-polygon
@@ -42,6 +55,7 @@ hostListenerShared:
     - --reorg-maximum-duration-in-blocks=120
     - --log-level=INFO
     - --dependence-cross-block
+    - --confidential-bridge-address=$(CONFIDENTIAL_BRIDGE_ADDRESS)
     - --dependent-ops-max-per-chain=0
     - --catchup-paging=1000
   ports:
@@ -78,7 +92,7 @@ hostListenerShared:
 hostListenerPollerShared:
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
+    tag: "v0.14.5@sha256:8fc7015e707d9fc3149c9ff4843e15e1b94775a9cd0990de093a8799139149e5"
   replicas: 1
   args:
     serviceName: testnet-coprocessor-host-listener-poller-polygon
@@ -87,61 +101,12 @@ hostListenerPollerShared:
   extraArgs:
     - --log-level=INFO
     - --dependence-cross-block
+    - --confidential-bridge-address=$(CONFIDENTIAL_BRIDGE_ADDRESS)
     - --finality-lag=4
     - --poll-interval-ms=1500
     - --batch-size=1000
   ports:
     metrics: "9100"
-  serviceMonitor:
-    enabled: true
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
-    limits:
-      cpu: 1
-      memory: 2Gi
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: karpenter.sh/nodepool
-                operator: In
-                values:
-                  - zws-pool
-  tolerations:
-    - key: karpenter.sh/nodepool
-      effect: NoSchedule
-      operator: Equal
-      value: zws-pool
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-
-hostListenerCatchupOnlyShared:
-  image:
-    name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/host-listener
-    tag: v0.13.0
-  replicas: 1
-  args:
-    serviceName: testnet-coprocessor-host-listener-catchup-only-polygon
-  tracing:
-    service: testnet-coprocessor-host-listener-catchup-only-polygon
-  extraArgs:
-    - --initial-block-time=2
-    - --dependence-cache-size=10000
-    - --reorg-maximum-duration-in-blocks=4
-    - --catchup-finalization-in-blocks=4
-    - --catchup-paging=1000
-    - --log-level=INFO
-    - --dependence-cross-block
-    - --start-at-block=40996500
-  ports:
-    metrics: "9100"
-    healthcheck: "8080"
   serviceMonitor:
     enabled: true
   resources:
@@ -190,13 +155,15 @@ chains:
         name: polygon-sc-addresses
         key: fhevm_executor.address
     kmsGenerationContractAddress: "0x0000000000000000000000000000000000000000"
+    protocolConfigContractAddressValueFrom:
+      configMapKeyRef:
+        name: polygon-sc-addresses
+        key: protocol_config.address
     hostListener:
       enabled: true
     hostListenerPoller:
       enabled: true
       useLegacyName: true
-    hostListenerCatchupOnly:
-      enabled: true
 
 dbMigration:
   enabled: false

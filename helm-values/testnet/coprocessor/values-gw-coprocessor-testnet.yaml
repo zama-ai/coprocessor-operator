@@ -1,4 +1,5 @@
-# Coprocessor Helm chart: 0.13.3
+# Coprocessor Helm chart: 0.13.29 
+# Testnet promotion target: v0.14.5; see README.md before rollout.
 
 commonConfig:
   databaseUser:
@@ -28,6 +29,11 @@ commonConfig:
         configMapKeyRef:
           name: gw-sc-addresses
           key: input_verification.address
+    kmsGeneration:
+      valueFrom:
+        configMapKeyRef:
+          name: gw-sc-addresses
+          key: kms_generation.address
     ciphertextCommits:
       valueFrom:
         configMapKeyRef:
@@ -52,7 +58,7 @@ gwListener:
   replicas: 1
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/gw-listener
-    tag: v0.13.0
+    tag: "v0.14.5@sha256:6bb50b32454ae70b06fe213d98987e3ce1a9019c6b3e8b3a8a0a458ea18e6baa"
   tracing:
     service: testnet-coprocessor-gw-listener
   disabledArgs:
@@ -119,7 +125,7 @@ txSender:
   serviceAccountName: tx-sender
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/tx-sender
-    tag: v0.13.5
+    tag: "v0.14.5@sha256:d31a95364ac53c258770c2bfdbf7e593ea83bd6ad4ab26a78ace7e7574729f86"
   env:
     - name: GATEWAY_URL_HTTP
       valueFrom:
