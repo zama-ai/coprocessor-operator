@@ -1,5 +1,5 @@
 # Coprocessor Helm chart: 0.13.29
-# Testnet promotion target: v0.14.5; see README.md before rollout.
+# Testnet promotion target: v0.14.6 (db-migration hotfix); see README.md before rollout.
 
 commonConfig:
   databaseUser:
@@ -58,7 +58,7 @@ dbMigration:
   enabled: true
   image:
     name: hub.zama.org/zama-protocol/zama-ai/fhevm/coprocessor/db-migration
-    tag: "v0.14.5@sha256:a4f78a78090c93ee53fbec22fd53fc4645c5a9ddb70656693afe9b5b2b1fe43a"
+    tag: "v0.14.6@sha256:78b714571bd0a22358f386b851d16224eff5a091b6e4121d22a21af20e9f329e"
   resources:
     requests:
       cpu: 2
