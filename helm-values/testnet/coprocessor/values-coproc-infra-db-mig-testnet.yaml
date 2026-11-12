@@ -72,7 +72,7 @@ dbMigration:
         nodeSelectorTerms:
           - matchExpressions:
               - key: karpenter.sh/nodepool
-                operator: In
+                operator: Out
                 values:
                   - zws-pool
   tolerations:
