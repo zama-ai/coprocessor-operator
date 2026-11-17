@@ -1,0 +1,116 @@
+# One-off repair of object metadata in the partner's coprocessor bucket.
+#
+# Earlier runs of s3-ciphertext-migrate used `s5cmd sync` without
+# --metadata-directive COPY. s5cmd defaults to REPLACE for S3-to-S3 copies,
+# so every migrated object lost its user metadata (x-amz-meta-ct-format)
+# and Content-Type. Re-running the migrate job does not fix this:
+# --size-only skips objects that already exist with the same size.
+#
+# This job re-copies every object from the Zama source bucket over the
+# partner's copy, keeping the source metadata. `cp` overwrites by default.
+# With bucket versioning enabled, the overwritten copies are kept as
+# noncurrent versions.
+#
+# Before running:
+#   1. Set SRC_BUCKET (same value as for s3-ciphertext-migrate)
+
+fullnameOverride: s3-ciphertext-metadata-repair
+
+namespace: coproc-admin
+
+imagePullSecrets:
+  - name: registry-credentials
+
+image:
+  repository: hub.zama.org/zama-protocol/zama-ai/security-hub/infra/s5cmd
+  tag: "v2.3.0"
+
+serviceAccountName: s3-migrate
+
+podAnnotations:
+  karpenter.sh/do-not-disrupt: "true"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10002
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+job:
+  enabled: true
+  backoffLimit: 2
+  restartPolicy: Never
+  # Server-side CopyObject per object; no local temp files, so no scratch PVC.
+  # --metadata-directive COPY keeps x-amz-meta-* and Content-Type from the
+  # source. Without it, s5cmd sends REPLACE and strips them again.
+  args:
+    - --log
+    - error
+    - --stat
+    - --numworkers
+    - "$(S5CMD_WORKERS)"
+    - cp
+    - --metadata-directive
+    - COPY
+    - "s3://$(SRC_BUCKET)/*"
+    - "s3://$(DST_BUCKET)/"
+
+env:
+  - name: SRC_BUCKET
+    value: "" # CHANGE ME
+  - name: DST_BUCKET
+    valueFrom:
+      configMapKeyRef:
+        name: db-admin-config
+        key: S3_BUCKET_NAME
+  - name: AWS_REGION
+    value: ""
+  - name: AWS_DEFAULT_REGION
+    value: ""
+  - name: AWS_CONFIG_FILE
+    value: /aws-config/config
+  - name: HOME
+    value: /scratch
+  - name: TMPDIR
+    value: /scratch
+  - name: S5CMD_WORKERS
+    value: "512"
+
+volumeMounts:
+  - name: scratch
+    mountPath: /scratch
+
+volumes:
+  - name: scratch
+    emptyDir: {}
+
+resources:
+  requests:
+    cpu: "8"
+    memory: 16Gi
+  limits:
+    cpu: "100"
+    memory: 600Gi
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: karpenter.sh/nodepool
+              operator: In
+              values:
+                - coprocessor-pool
+
+tolerations:
+  - key: karpenter.sh/nodepool
+    effect: NoSchedule
+    operator: Equal
+    value: coprocessor-pool
